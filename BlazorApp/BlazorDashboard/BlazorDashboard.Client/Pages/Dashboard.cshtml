@@ -1,0 +1,18 @@
+﻿@using BlazorDashboard.Shared
+@page "/dashboard"
+@inject HttpClient Http
+
+<h1>Dashboard</h1>
+
+<p>Here you can see some stats for various cryptocurrencies.</p>
+<p>All data is downloaded using <a href="https://www.cryptocompare.com/api/">cryptocomppare api</a> under <a href="https://creativecommons.org/licenses/by-nc/3.0/">creative commons license</a> </p>
+
+<div class="col-sm-6">
+    <Prices Name="Bitcoin" ApiCryptocurrencyCode="BTC" RefreshDelaySeconds="10" />
+</div>
+<div class="col-sm-6">
+    <Prices Name="Ether" ApiCryptocurrencyCode="ETH" RefreshDelaySeconds="20" />
+</div>
+<div class="col-sm-6">
+    <Prices Name="Stratis" ApiCryptocurrencyCode="STRAT" RefreshDelaySeconds="30" />
+</div>

@@ -1,0 +1,64 @@
+﻿@inject HttpClient Http
+@using BlazorDashboard.Shared
+
+<div>
+    <h1>@Name</h1>
+
+    @if (prices == null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>USD</th>
+                    <th>EUR</th>
+                    <th>JPY</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>@prices.USD</td>
+                    <td>@prices.EUR</td>
+                    <td>@prices.JPY</td>
+                </tr>
+            </tbody>
+        </table>
+        <form class="form-inline">
+            <div class="form-group">
+                Data refresh rate: <input type="range" min="5" max="100" step="1" bind="@RefreshDelaySeconds" /> @RefreshDelaySeconds  seconds
+            </div>
+        </form>
+    }
+    @functions {
+        public string Name { get; set; }
+
+        public string ApiCryptocurrencyCode { get; set; }
+
+        public int RefreshDelaySeconds { get; set; }
+
+        PricesModel prices;
+
+        protected override async Task OnInitAsync() {
+            await Refresh();
+            await Task.Run(async () =>
+            {
+                while (true)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(RefreshDelaySeconds));
+                    await Refresh();
+                }
+            });
+        }
+
+
+        async Task Refresh()
+        {
+            prices = await Http.GetJsonAsync<PricesModel>($@"https://min-api.cryptocompare.com/data/price?fsym={ApiCryptocurrencyCode}&tsyms=USD,JPY,EUR");
+            this.StateHasChanged();
+        }
+
+        }
+</div>
