@@ -286,3 +286,19 @@ __pycache__/
 *.btm.cs
 *.odx.cs
 *.xsd.cs
+
+# Server
+
+*.class
+
+# sbt specific
+.cache/
+.history/
+.lib/
+*dist/*
+*target/
+*lib_managed/
+*src_managed/
+*project/boot/
+*project/plugins/project/
+server/.idea
