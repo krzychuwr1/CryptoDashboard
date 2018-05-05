@@ -42,3 +42,14 @@ dockerfile in docker := {
     entryPoint("java", "-Duser.timezone=UTC", "-jar", artifactTargetPath)
   }
 }
+
+imageNames in docker := Seq(
+  ImageName(
+    repository = name.value,
+    tag = Some(version.value)
+  ),
+  ImageName(
+    repository = name.value,
+    tag = Some(version.value)
+  )
+)
