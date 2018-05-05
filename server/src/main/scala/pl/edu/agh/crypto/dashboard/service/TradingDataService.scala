@@ -8,7 +8,7 @@ import shapeless.HList
 
 /**
   * Service providing data for a specific COIN ("FROMSYMBOL")
-  * It is "type-level" polimorphic, which means that concrete implementations may provide different kind of data
+  * It is "type-level" polymorphic, which means that concrete implementations may provide different kind of data
   * @tparam F context
   * @tparam DS types of available data
   */
