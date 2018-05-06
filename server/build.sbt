@@ -45,11 +45,11 @@ dockerfile in docker := {
 
 imageNames in docker := Seq(
   ImageName(
-    repository = name.value,
+    repository = "dashboard_server",
     tag = Some(version.value)
   ),
   ImageName(
-    repository = name.value,
-    tag = Some(version.value)
+    repository = "dashboard_server",
+    tag = Some("latest")
   )
 )
