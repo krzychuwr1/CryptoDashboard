@@ -8,7 +8,7 @@ import io.circe.{Decoder, Encoder, KeyEncoder}
 import pl.edu.agh.crypto.dashboard.util.ApplyFromJava
 
 
-abstract class SingleCollectionQueries[F[_]](
+abstract class KeyValueQueries[F[_]](
   dbAsync: ArangoDatabaseAsync
 ) extends QueryInterpolation with CollectionUtils with QueryParameter.Syntax with ApplyFromJava.Syntax {
   import cats.syntax.either._
