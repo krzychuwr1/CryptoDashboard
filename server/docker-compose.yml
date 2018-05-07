@@ -1,0 +1,20 @@
+version: '2'
+
+services:
+    reverseproxy:
+        image: dashboard_reverseproxy
+        ports:
+            - 80:8080
+        restart: always
+
+    crypto-server:
+        depends_on:
+            - reverseproxy
+        image: dashboard_server:latest
+        restart: always
+
+    swagger-ui:
+        depends_on:
+            - reverseproxy
+        image: swaggerapi/swagger-ui:latest
+        restart: always
