@@ -35,6 +35,7 @@ object QueryInterpolation {
       val paramNames: Map[BoundParameter, String] = withoutDuplicates {
         args.collect {
           case v: BoundParameter => v
+          case Expression(_, _, v) => v
         }.toList
       }
 
@@ -48,6 +49,8 @@ object QueryInterpolation {
       val flattened = args map {
         case b: BoundParameter =>
           fillVariable(paramNames(b))
+        case Expression(field, op, v) =>
+          s"$field $op ${fillVariable(paramNames(v))}"
         case StringParameter(s) =>
           s
       }

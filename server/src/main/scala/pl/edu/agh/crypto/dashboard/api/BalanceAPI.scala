@@ -15,7 +15,6 @@ import pl.edu.agh.crypto.dashboard.service.{DataServiceProvider, TradingDataServ
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import io.circe.Encoder
-import io.circe.generic.auto._
 import org.http4s.EntityEncoder
 import org.http4s.circe._
 

@@ -43,4 +43,10 @@ class QueryInterpolationTest extends FlatSpec with Matchers
     query.parameters.size should equal(3)
   }
 
+  it should "construct conditional expression" in {
+    val query = aql"FOR c IN 'test' FILTER ${"c.x" |<| 42} && ${"c.y" |>=| 42}"
+    query.code should equal("FOR c IN 'test' FILTER c.x < @var_1 && c.y >= @var_1")
+    query.parameters("var_1") should equal(42)
+  }
+
 }

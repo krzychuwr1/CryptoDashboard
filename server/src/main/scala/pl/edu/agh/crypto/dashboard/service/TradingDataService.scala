@@ -12,15 +12,19 @@ import shapeless.HList
   * @tparam F context
   * @tparam DS types of available data
   */
-trait TradingDataService[F[_], DS <: HList] {
+trait TradingDataService[F[_], DS <: HList] { self =>
 
   //"list" of all supported data-types
   type DataSources = DS
   def dataSources: DataSources
 
+  protected def fromSymbol: CurrencyName
+
   @inline private def dataSource[T](implicit find: Find[DataSources, DataSource[F, T]]) = find.get(dataSources)
 
-  protected def fromSymbol: CurrencyName
+  trait SymbolDataSource[T] extends DataSource[F, T] {
+    override protected def fromSymbol: CurrencyName = self.fromSymbol
+  }
 
   def getDataOf[T](toSymbols: Set[CurrencyName])(implicit find: Find[DataSources, DataSource[F, T]]): F[List[T]] =
     dataSource[T].getDataOf(toSymbols, None, None)

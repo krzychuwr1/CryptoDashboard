@@ -1,8 +1,11 @@
 package pl.edu.agh.crypto.dashboard.model
 
+import org.joda.time.DateTime
+
 case class TradingInfo(
-  fromSymbol: CurrencyName,
-  toSymbol: CurrencyName,
+  when: DateTime,
+  fromSymbol: Currency,
+  toSymbol: Currency,
   price: BigDecimal,
   supply: BigInt,
   marketCap: BigDecimal

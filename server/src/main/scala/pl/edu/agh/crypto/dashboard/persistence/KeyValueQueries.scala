@@ -10,6 +10,9 @@ import pl.edu.agh.crypto.dashboard.util.ApplyFromJava
 
 abstract class KeyValueQueries[F[_]](
   dbAsync: ArangoDatabaseAsync
+)(implicit
+  ef: Effect[F],
+  ap: ApplyFromJava[F]
 ) extends QueryInterpolation with CollectionUtils with QueryParameter.Syntax with ApplyFromJava.Syntax {
   import cats.syntax.either._
   import cats.syntax.flatMap._
@@ -20,14 +23,11 @@ abstract class KeyValueQueries[F[_]](
   def put[T: Encoder, ID: KeyEncoder](collection: String)(
     key: ID,
     elem: T
-  )(implicit
-    ef: Effect[F],
-    ap: ApplyFromJava[F]
   ): F[Unit] = {
     dbAsync.executeModificationQuery(
       aql"""UPSERT { '_key': ${bindKey(key)} }
         |INSERT ${bind(elem)}
-        |UPDATE ${bind(elem)} IN ${bindCollection(collection)}
+        |REPLACE ${bind(elem)} IN ${bindCollection(collection)}
       """.stripMargin,
       new AqlQueryOptions()
     )
@@ -35,9 +35,6 @@ abstract class KeyValueQueries[F[_]](
 
   def get[T: Decoder, ID: KeyEncoder](collection: String)(
     key: ID
-  )(implicit
-    ef: Effect[F],
-    ap: ApplyFromJava[F]
   ): F[T] = {
     dbAsync
       .collection(collection)
@@ -49,9 +46,6 @@ abstract class KeyValueQueries[F[_]](
 
   def delete[ID: KeyEncoder](collection: String)(
     key: ID
-  )(implicit
-    ef: Effect[F],
-    ap: ApplyFromJava[F]
   ): F[Unit] = {
     import cats.syntax.functor._
     dbAsync
@@ -64,9 +58,6 @@ abstract class KeyValueQueries[F[_]](
   def update[T: Encoder, ID: KeyEncoder](collection: String)(
     key: ID,
     elem: T
-  )(implicit
-    ef: Effect[F],
-    ap: ApplyFromJava[F]
   ): F[Unit] = {
     import cats.syntax.functor._
     dbAsync
