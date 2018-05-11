@@ -25,8 +25,6 @@ class BalanceAPI[F[+ _] : Effect](
   commonParsers: CommonParsers[F]
 ) extends RhoService[F] with SwaggerSyntax[F] {
 
-  Encoder.encodeMap[CurrencyName, BigDecimal]
-
   implicit def listEncoder[T: Encoder]: EntityEncoder[F, List[T]] = jsonEncoderOf[F, List[T]]
 
   import commonParsers._

@@ -3,8 +3,7 @@ package pl.edu.agh.crypto.dashboard.service
 import org.joda.time.DateTime
 import pl.edu.agh.crypto.dashboard.model.CurrencyName
 import pl.edu.agh.crypto.dashboard.service.TradingDataService.DataSource
-import pl.edu.agh.crypto.dashboard.util.Find
-import shapeless.HList
+import shapeless.{HList, ops}, ops.hlist._
 
 /**
   * Service providing data for a specific COIN ("FROMSYMBOL")
@@ -20,20 +19,20 @@ trait TradingDataService[F[_], DS <: HList] { self =>
 
   protected def fromSymbol: CurrencyName
 
-  @inline private def dataSource[T](implicit find: Find[DataSources, DataSource[F, T]]) = find.get(dataSources)
-
   trait SymbolDataSource[T] extends DataSource[F, T] {
     override protected def fromSymbol: CurrencyName = self.fromSymbol
   }
 
-  def getDataOf[T](toSymbols: Set[CurrencyName])(implicit find: Find[DataSources, DataSource[F, T]]): F[List[T]] =
-    dataSource[T].getDataOf(toSymbols, None, None)
+  private type FindDataSource[T] = Selector[DataSources, DataSource[F, T]]
 
-  def getDataOf[T](toSymbols: Set[CurrencyName], from: DateTime)(implicit find: Find[DataSources, DataSource[F, T]]): F[List[T]] =
-    dataSource[T].getDataOf(toSymbols, Some(from), None)
+  def getDataOf[T: FindDataSource](toSymbols: Set[CurrencyName]): F[List[T]] =
+    dataSources.select[DataSource[F, T]].getDataOf(toSymbols, None, None)
 
-  def getDataOf[T](toSymbols: Set[CurrencyName], from: DateTime, to: DateTime)(implicit find: Find[DataSources, DataSource[F, T]]): F[List[T]] =
-    dataSource[T].getDataOf(toSymbols, Some(from), Some(to))
+  def getDataOf[T: FindDataSource](toSymbols: Set[CurrencyName], from: DateTime): F[List[T]] =
+    dataSources.select[DataSource[F, T]].getDataOf(toSymbols, Some(from), None)
+
+  def getDataOf[T: FindDataSource](toSymbols: Set[CurrencyName], from: DateTime, to: DateTime): F[List[T]] =
+    dataSources.select[DataSource[F, T]].getDataOf(toSymbols, Some(from), Some(to))
 
 }
 
