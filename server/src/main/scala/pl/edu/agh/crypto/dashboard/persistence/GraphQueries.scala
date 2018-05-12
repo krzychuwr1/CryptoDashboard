@@ -4,11 +4,10 @@ import cats.effect.Effect
 import com.arangodb.ArangoDatabaseAsync
 import com.arangodb.model.AqlQueryOptions
 import io.circe.{Decoder, Encoder, Json}
-import pl.edu.agh.crypto.dashboard.model.GraphDefinition
 import pl.edu.agh.crypto.dashboard.util.ApplyFromJava
 
 
-abstract class GraphQueries[F[_], From: Encoder: Decoder, To: Encoder: Decoder](
+abstract class GraphQueries[F[_], From: Encoder: Decoder, To: Encoder: Decoder, Edge: Encoder](
   dbAsync: ArangoDatabaseAsync,
   graph: GraphDefinition[From, To]
 )(implicit
@@ -18,18 +17,20 @@ abstract class GraphQueries[F[_], From: Encoder: Decoder, To: Encoder: Decoder](
   import io.circe.syntax._
   import EdgeVertex._
 
-  private def edgeOf(from: From, to: To, edgeKey: Option[String]) = {
-    val keyObject = edgeKey.map(k => Json.obj("_key" := k)).getOrElse(Json.obj())
+  val keyValueQueries = new KeyValueQueries[F](dbAsync) {}
+
+  private def edgeOf(from: From, to: To, edgeFields: Option[Edge]) = {
+    val edgeFieldsObj = edgeFields.map(_.asJson).getOrElse(Json.obj())
 
     Json.obj(
       "_from" := graph.fromID(from),
       "_to" := graph.toID(to)
-    ).deepMerge(keyObject)
+    ).deepMerge(edgeFieldsObj)
   }
 
 
-  private def putOnlyEdge(from: From, to: To, edgeKey: Option[String]): F[Unit] = {
-    val edge = edgeOf(from, to, edgeKey)
+  private def putOnlyEdge(from: From, to: To, edgeFields: Option[Edge]): F[Unit] = {
+    val edge = edgeOf(from, to, edgeFields)
     dbAsync.executeModificationQuery(
       aql"""
         |UPSERT ${bind(edge)} INSERT ${bind(edge)} REPLACE ${bind(edge)} IN ${bindCollection(graph.edgeCollection)}
@@ -38,8 +39,8 @@ abstract class GraphQueries[F[_], From: Encoder: Decoder, To: Encoder: Decoder](
     )
   }
 
-  private def putEdgeAndTo(from: From, to: To, edgeKey: Option[String]): F[Unit] = {
-    val edge = edgeOf(from, to, edgeKey)
+  private def putEdgeAndTo(from: From, to: To, edgeFields: Option[Edge]): F[Unit] = {
+    val edge = edgeOf(from, to, edgeFields)
 
     dbAsync.executeModificationQuery(
       aql"""FOR v IN [0..0] OUTBOUND ${bindKey(graph.fromID(from))} GRAPH ${graph.name}
@@ -52,8 +53,8 @@ abstract class GraphQueries[F[_], From: Encoder: Decoder, To: Encoder: Decoder](
 
   }
 
-  private def putEdgeAndFrom(from: From, to: To, edgeKey: Option[String]): F[Unit] = {
-    val edge = edgeOf(from, to, edgeKey)
+  private def putEdgeAndFrom(from: From, to: To, edgeFields: Option[Edge]): F[Unit] = {
+    val edge = edgeOf(from, to, edgeFields)
 
     dbAsync.executeModificationQuery(
       aql"""FOR v IN [0..0] INBOUND ${bindKey(graph.toID(to))} GRAPH ${graph.name}
@@ -65,8 +66,8 @@ abstract class GraphQueries[F[_], From: Encoder: Decoder, To: Encoder: Decoder](
     )
   }
 
-  private def putFullEdge(from: From, to: To, edgeKey: Option[String]): F[Unit] = {
-    val edge = edgeOf(from, to, edgeKey)
+  private def putFullEdge(from: From, to: To, edgeField: Option[Edge]): F[Unit] = {
+    val edge = edgeOf(from, to, edgeField)
     dbAsync.executeModificationQuery(
       aql"""UPSERT { '_key': ${bindKey(graph.fromKey(from))}
         |INSERT ${bind(from)} REPLACE ${bind(from)} IN ${bindCollection(graph.fromCollection)}
@@ -78,30 +79,32 @@ abstract class GraphQueries[F[_], From: Encoder: Decoder, To: Encoder: Decoder](
     )
   }
 
-  def putEdge(from: EdgeVertex[From], to: EdgeVertex[To], edgeKey: Option[String]): F[Unit] = (from, to) match {
+  def putEdge(from: EdgeVertex[From], to: EdgeVertex[To], edgeFields: Option[Edge]): F[Unit] = (from, to) match {
     case (EdgeVertex(f, DoNothing), EdgeVertex(t, DoNothing)) =>
-      putOnlyEdge(f, t, edgeKey)
+      putOnlyEdge(f, t, edgeFields)
     case (EdgeVertex(f, Upsert), EdgeVertex(t, DoNothing)) =>
-      putEdgeAndFrom(f, t, edgeKey)
+      putEdgeAndFrom(f, t, edgeFields)
     case (EdgeVertex(f, DoNothing), EdgeVertex(t, Upsert)) =>
-      putEdgeAndTo(f, t, edgeKey)
+      putEdgeAndTo(f, t, edgeFields)
     case (EdgeVertex(f, Upsert), EdgeVertex(t, Upsert)) =>
-      putFullEdge(f, t, edgeKey)
+      putFullEdge(f, t, edgeFields)
   }
 
-  def getTo(from: From): F[List[To]] =
+  def getTo(from: From, filter: (String, String) => String = (_, _) => ""): F[List[To]] =
     dbAsync.executeQuery(
       aql"""
-        |FOR v IN [1..1] OUTBOUND ${bindKey(graph.fromID(from))} GRAPH ${graph.name}
+        |FOR v, e IN [1..1] OUTBOUND ${bindKey(graph.fromID(from))} GRAPH ${graph.name}
+        | ${filter("v", "e")}
         | RETURN v
       """.stripMargin,
       new AqlQueryOptions()
     )
 
-  def getFrom(to: To): F[List[From]] =
+  def getFrom(to: To, filter: (String, String) => String = (_, _) => ""): F[List[From]] =
     dbAsync.executeQuery(
       aql"""
-        |FOR v IN [1..1] INBOUND ${bindKey(graph.toID(to))} GRAPH ${graph.name}
+        |FOR v, e IN [1..1] INBOUND ${bindKey(graph.toID(to))} GRAPH ${graph.name}
+        | ${filter("v", "e")}
         | RETURN v
       """.stripMargin,
       new AqlQueryOptions()

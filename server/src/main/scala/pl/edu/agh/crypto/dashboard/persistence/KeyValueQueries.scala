@@ -36,9 +36,15 @@ abstract class KeyValueQueries[F[_]](
   def get[T: Decoder, ID: KeyEncoder](collection: String)(
     key: ID
   ): F[T] = {
+    getRaw[T](collection)(KeyEncoder[ID].apply(key))
+  }
+
+  def getRaw[T: Decoder](collection: String)(
+    key: String
+  ): F[T] = {
     dbAsync
       .collection(collection)
-      .getDocument(KeyEncoder[ID].apply(key), classOf[String], new DocumentReadOptions().catchException(true))
+      .getDocument(key, classOf[String], new DocumentReadOptions().catchException(true))
       .defer
       .flatMap(s => ef.pure(decode[T](s).leftMap(lift)))
       .rethrow

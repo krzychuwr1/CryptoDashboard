@@ -1,67 +1,62 @@
 package pl.edu.agh.crypto.dashboard
 
 import fs2.StreamApp
-import io.circe.Encoder
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
-import org.http4s.implicits._
 import org.http4s.rho.swagger.SwaggerSupport
 import org.http4s.server.blaze.BlazeBuilder
 import org.joda.time.DateTime
-import pl.edu.agh.crypto.dashboard.api.{BalanceAPI, CommonParsers, DataTypeEntry, GenericBalanceAPI}
+import pl.edu.agh.crypto.dashboard.api.{CommonParsers, GenericBalanceAPI}
+import pl.edu.agh.crypto.dashboard.config.DataTypeEntry
 import pl.edu.agh.crypto.dashboard.model.{CurrencyName, PricePairEntry, TradingInfoEntry}
-import pl.edu.agh.crypto.dashboard.service.BasicDataService
-import pl.edu.agh.crypto.dashboard.service.BasicTradingService.BasicDataSource
-import pl.edu.agh.crypto.dashboard.service.TradingDataService.DataSource
-import shapeless.HNil
+import pl.edu.agh.crypto.dashboard.service.{DataService, DataSource}
+import shapeless.PolyDefns.~>
 
 object Launcher {
 
-  private class MockDataSource[T](val fromSymbol: CurrencyName) extends DataSource[Task, T] {
-    override def getDataOf(
-      toSymbols: Set[CurrencyName],
-      from: Option[DateTime],
-      to: Option[DateTime]
-    ): Task[List[T]] = Task.now(List.empty)
-  }
+  private class MockDataService[T] extends DataService[Task, T] {
 
-  private def mockDataSource[T](fromSymbol: CurrencyName): DataSource[Task, T] = new MockDataSource[T](fromSymbol)
-
-
-  //quite easy to setup service, without messy type-signatures, etc
-  lazy val serviceProvider = BasicDataService { currencyName =>
-    import shapeless._
-    Task pure {
-       mockDataSource[PricePairEntry](currencyName) :: mockDataSource[TradingInfoEntry](currencyName) :: HNil
+    private class MockDataSource(val fromSymbol: CurrencyName) extends DataSource[Task, T] {
+      override def getDataOf(
+        toSymbols: Set[CurrencyName],
+        from: Option[DateTime],
+        to: Option[DateTime]
+      ): Task[List[T]] = Task.now(List.empty)
     }
+
+    override def getDatSource(currency: CurrencyName): Task[DataSource[Task, T]] =
+      Task.pure(new MockDataSource(currency)).memoizeOnSuccess
   }
+
+  private def mockDataService[T]: Task[DataService[Task, T]] = Task.pure(new MockDataService[T]).memoize
 
   class App extends StreamApp[Task] {
 
     private val swaggerSupport = SwaggerSupport.apply[Task]
     private val middleware = swaggerSupport.createRhoMiddleware()
-    import shapeless._
     import api.ciStringKeyEncoder
+    import shapeless._
 
-    lazy val genericAPI = new GenericBalanceAPI[
-      Task, DataTypeEntry[PricePairEntry] :: DataTypeEntry[TradingInfoEntry] :: HNil,
-      BasicDataSource[Task]](
+    private val priceEntry = DataTypeEntry[PricePairEntry](
+      "rate",
+      "exchange rates for the specific currency, against some other in the given time period"
+    )
+
+    private val tradingEntry = DataTypeEntry[TradingInfoEntry](
+      "info",
+      "complete information about specific currency pair"
+    )
+
+    lazy val genericAPI = new GenericBalanceAPI[Task, DataTypeEntry[PricePairEntry] :: DataTypeEntry[TradingInfoEntry] :: HNil](
       keys =
-        DataTypeEntry[PricePairEntry]("rate", "exchange rates for the specific currency, against some other in the given time period", implicitly[Encoder[PricePairEntry]]) ::
-          DataTypeEntry[TradingInfoEntry]("info", "complete information about specific currency pair", implicitly[Encoder[TradingInfoEntry]]) ::
+        priceEntry ::
+          tradingEntry ::
           HNil,
-      dataSource = serviceProvider,
+      dataServices = λ[DataTypeEntry ~> λ[X => Task[DataService[Task, X]]]](_ => mockDataService),
       new CommonParsers[Task] {}
     ) {
       keys.map(routes).toList.foreach(_ => ())
     }
-
-    lazy val balanceAPI = new BalanceAPI[Task](
-      DateTime.parse("2018-05-01T00:00:01"),
-      Set("BTC".ci, "ETH".ci),
-      serviceProvider,
-      new CommonParsers[Task] {}
-    )
 
     override def stream(args: List[String], requestShutdown: Task[Unit]): fs2.Stream[Task, StreamApp.ExitCode] =
       BlazeBuilder[Task]

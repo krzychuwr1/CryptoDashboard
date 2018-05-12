@@ -12,16 +12,17 @@ import org.http4s.rho.RhoService
 import org.http4s.rho.bits.{ResultResponse, StringParser, SuccessResponse}
 import org.http4s.rho.swagger.SwaggerSyntax
 import org.joda.time.DateTime
-import pl.edu.agh.crypto.dashboard.model.{CurrencyName, PricePairEntry, TradingInfoEntry}
-import pl.edu.agh.crypto.dashboard.service.TradingDataService.DataSource
-import pl.edu.agh.crypto.dashboard.service.{DataServiceProvider, TradingDataService}
+import pl.edu.agh.crypto.dashboard.config.DataTypeEntry
+import pl.edu.agh.crypto.dashboard.model.CurrencyName
+import pl.edu.agh.crypto.dashboard.service.DataService
+import shapeless.PolyDefns.~>
 import shapeless._
 
 import scala.reflect.runtime.universe
 
-abstract class GenericBalanceAPI[F[+_], Keys <: HList, DS <: HList](
+abstract class GenericBalanceAPI[F[+_], Keys <: HList](
   val keys: Keys,
-  val dataSource: DataServiceProvider[F, DS],
+  dataServices: DataTypeEntry ~> λ[X => F[DataService[F, X]]],
   commonParsers: CommonParsers[F]
 )(implicit
   ef: Effect[F]
@@ -50,51 +51,25 @@ abstract class GenericBalanceAPI[F[+_], Keys <: HList, DS <: HList](
   )
 
   object routes extends Poly1 {
-    import shapeless.ops.hlist.Selector
 
-    implicit def allCases[T](implicit s: Selector[DS, DataSource[F, T]]) =
+    implicit def allCases[T: Encoder] =
       at[DataTypeEntry[T]] { elem =>
-        val DataTypeEntry(key, description, encoder) = elem
-        implicit val e: Encoder[T] = encoder
+        val key = elem.key
+        val description = elem.description
         description **
         GET / key / "of" / currencyName("queried-currency","Name of the queried currency") /
           "for" / currencyName("compared-currency", "Name of the compared currency") +?
           (queryFrom & queryTo)  |>> { (currency: CurrencyName, base: CurrencyName, from: Option[DateTime], to: Option[DateTime]) =>
 
-          def queryData(dataService: TradingDataService[F, DS]) = (from, to) match {
-            case (Some(f), Some(t)) => dataService.getDataOf[T](Set(base), f, t) flatMap { Ok(_) }
-            case (Some(f), None) => dataService.getDataOf[T](Set(base), f) flatMap { Ok(_) }
-            case (None, None) => dataService.getDataOf[T](Set(base)) flatMap { Ok(_) }
-            case _ => BadRequest("Cannot specify only `to` query limit (need to provide `from`)")
-          }
-
           for {
-            ds <- dataSource.getTradingDataService(currency)
-            resp <- queryData(ds)
+            service <- dataServices(elem)
+            source <- service.getDatSource(currency)
+            result <- source.getDataOf(Set(base), from, to)
+            resp <- Ok(result)
           } yield resp
         }
       }
 
   }
-
-}
-
-object GenericBalanceAPI {
-
-  class BasicGenericAPI[F[+_]: Effect](
-    ds: DataServiceProvider[F, BasicDataSource[F]],
-    cp: CommonParsers[F]
-  ) extends GenericBalanceAPI[F, DataTypeEntry[PricePairEntry] :: DataTypeEntry[TradingInfoEntry] :: HNil, BasicDataSource[F]](
-    keys =
-      DataTypeEntry[PricePairEntry]("rate", "exchange rates for the specific currency, against some other in the given time period", implicitly[Encoder[PricePairEntry]]) ::
-        DataTypeEntry[TradingInfoEntry]("info", "complete information about specific currency pair", implicitly[Encoder[TradingInfoEntry]]) ::
-        HNil,
-    ds,
-    cp
-  ) {
-    keys.map(routes)
-  }
-
-
 
 }
