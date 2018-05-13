@@ -6,6 +6,7 @@ import cats.effect.Effect
 import com.arangodb.ArangoDatabaseAsync
 import com.arangodb.entity.EdgeDefinition
 import pl.edu.agh.crypto.dashboard.util.ApplyFromJava
+import shapeless.PolyDefns.~>
 
 case class GraphDefinition[From, To](
   name: String,
@@ -27,7 +28,8 @@ object GraphDefinition extends ApplyFromJava.Syntax {
   import cats.syntax.flatMap._
 
   def create[F[_]: Effect: ApplyFromJava, From, To](
-    dbAsync: ArangoDatabaseAsync
+    dbAsync: ArangoDatabaseAsync,
+    memoization: F ~> F
   )(
     name: String,
     edgeCollection: String,
@@ -53,7 +55,7 @@ object GraphDefinition extends ApplyFromJava.Syntax {
     }
     import scala.collection.JavaConverters._
 
-    for {
+    val rawF = for {
       jcol <- dbAsync.getCollections.defer
       collections = jcol.asScala.map(_.getName).toSet
       _ <- createCollection(collections)(fromCollection)
@@ -70,5 +72,7 @@ object GraphDefinition extends ApplyFromJava.Syntax {
       fromKey = fromKey,
       toKey = toKey
     )
+
+    memoization(rawF)
   }
 }

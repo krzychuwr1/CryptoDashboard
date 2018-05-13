@@ -11,14 +11,32 @@ import pl.edu.agh.crypto.dashboard.service._
 import pl.edu.agh.crypto.dashboard.util.ApplyFromJava
 import shapeless.PolyDefns.~>
 
-class PersistentDataService[F[_]: Effect: ApplyFromJava, T: Encoder: Decoder] private(
+import scala.collection.concurrent.TrieMap
+
+class PersistentDataService[F[_]: Effect: ApplyFromJava, T: Encoder: Decoder: Connectable] private(
   dbAsync: ArangoDatabaseAsync,
   graph: GraphDefinition[Currency, T],
   memoizeOnSuccess: F ~> F
 ) extends GraphQueries[F, Currency, T, Edge](
   dbAsync,
   graph
-) with DataService[F, T] {
+) with DataService[F, T] with Connectable.Syntax {
+  import EdgeVertex._
+
+  private type MyDs = DataSource[F, T]
+
+  private[this] val dataSources: TrieMap[CurrencyName, F[MyDs]] = TrieMap.empty
+
+  private def getMemoized(name: CurrencyName): F[MyDs] = {
+    dataSources.getOrElseUpdate(
+      name,
+      memoizeOnSuccess(
+        keyValueQueries.getRaw[Currency](graph.fromCollection)(name.name.value)
+        .map(new SpecializedDataSource(_))
+        .widen[DataSource[F, T]]
+      )
+    )
+  }
 
   private class SpecializedDataSource(currency: Currency) extends DataSource[F, T] {
 
@@ -26,21 +44,27 @@ class PersistentDataService[F[_]: Effect: ApplyFromJava, T: Encoder: Decoder] pr
       toSymbols: Set[CurrencyName],
       from: Option[DateTime],
       to: Option[DateTime]
-    ): F[List[T]] = {
+    ): F[Map[CurrencyName, T]] = {
 
       val firstOperator = from.fold("")(_ => "&&")
       val secondOperator = from.fold("")(_ => "&&")
 
-      dbAsync.executeQuery(
+      dbAsync.executeQuery[(Edge, T)](
         aql"""
              |FOR v, e IN [1..1] OUTBOUND ${bindKey(graph.fromID(currency))} GRAPH ${graph.name}
              | FILTER ${"e.to" in toSymbols} $firstOperator ${from.map("e._key" |>=| _)} $secondOperator ${to.map("e._key" |<=| _)}
-             | RETURN v
+             | RETURN [e, v]
       """.stripMargin,
         new AqlQueryOptions()
-      )
+      ).map(_.iterator.map({ case (e, v) => e.to -> v }).toMap)
     }
 
+  }
+
+  private class SpecializedDataSink(currency: Currency) extends DataSink[F, T] {
+    override def saveData(data: T): F[Unit] = {
+      putEdge(currency.doNothing, data.upsert, Some(data.connect))
+    }
   }
 
   /**
@@ -48,13 +72,16 @@ class PersistentDataService[F[_]: Effect: ApplyFromJava, T: Encoder: Decoder] pr
     * @param currency name of the currency to support
     * @return data source for the specific currency (memoized)
     */
-  override def getDatSource(
+  override def getDataSource(
     currency: CurrencyName
-  ): F[DataSource[F, T]] = {
-    val sourceRaw = keyValueQueries.getRaw[Currency](graph.fromCollection)(currency.name.value)
-      .map(new SpecializedDataSource(_))
-      .widen[DataSource[F, T]]
-    memoizeOnSuccess(sourceRaw)
+  ): F[MyDs] =
+    getMemoized(currency)
+
+  override def getDataSink(currency: CurrencyName): F[DataSink[F, T]] = {
+    val sinkRaw = keyValueQueries.getRaw[Currency](graph.fromCollection)(currency.name.value)
+      .map(new SpecializedDataSink(_))
+      .widen[DataSink[F,T]]
+    memoizeOnSuccess(sinkRaw)
   }
 }
 
@@ -71,7 +98,7 @@ object PersistentDataService extends ApplyFromJava.Syntax {
     * @tparam T - supported types
     * @return Initialized DataService
     */
-  def create[F[_]: Effect: ApplyFromJava, T: Encoder: Decoder](
+  def create[F[_]: Effect: ApplyFromJava, T: Encoder: Decoder: Connectable](
     dbAsync: ArangoDatabaseAsync,
     graph: GraphDefinition[Currency, T],
     edgeIndexes: IndexDefinition*

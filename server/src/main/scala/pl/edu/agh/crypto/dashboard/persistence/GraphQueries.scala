@@ -1,13 +1,14 @@
 package pl.edu.agh.crypto.dashboard.persistence
 
 import cats.effect.Effect
+import cats.syntax.functor._
 import com.arangodb.ArangoDatabaseAsync
 import com.arangodb.model.AqlQueryOptions
 import io.circe.{Decoder, Encoder, Json}
 import pl.edu.agh.crypto.dashboard.util.ApplyFromJava
 
 
-abstract class GraphQueries[F[_], From: Encoder: Decoder, To: Encoder: Decoder, Edge: Encoder](
+abstract class GraphQueries[F[_], From: Encoder: Decoder, To: Encoder: Decoder, Edge: Encoder: Decoder](
   dbAsync: ArangoDatabaseAsync,
   graph: GraphDefinition[From, To]
 )(implicit
@@ -90,24 +91,26 @@ abstract class GraphQueries[F[_], From: Encoder: Decoder, To: Encoder: Decoder, 
       putFullEdge(f, t, edgeFields)
   }
 
-  def getTo(from: From, filter: (String, String) => String = (_, _) => ""): F[List[To]] =
-    dbAsync.executeQuery(
+  def getTo(from: From, filter: (String, String) => String = (_, _) => ""): F[Map[Edge, To]] =
+    dbAsync.executeQuery[(Edge, To)](
       aql"""
         |FOR v, e IN [1..1] OUTBOUND ${bindKey(graph.fromID(from))} GRAPH ${graph.name}
         | ${filter("v", "e")}
-        | RETURN v
+        | RETURN [e, v]
       """.stripMargin,
       new AqlQueryOptions()
-    )
+    ).map(_.toMap)
 
-  def getFrom(to: To, filter: (String, String) => String = (_, _) => ""): F[List[From]] =
-    dbAsync.executeQuery(
+  def getFrom(to: To, filter: (String, String) => String = (_, _) => ""): F[Map[Edge, From]] =
+    dbAsync.executeQuery[(Edge, From)](
       aql"""
         |FOR v, e IN [1..1] INBOUND ${bindKey(graph.toID(to))} GRAPH ${graph.name}
         | ${filter("v", "e")}
-        | RETURN v
+        | RETURN [e, v]
       """.stripMargin,
       new AqlQueryOptions()
-    )
+    ).map(_.toMap)
 
 }
+
+object GraphQueries

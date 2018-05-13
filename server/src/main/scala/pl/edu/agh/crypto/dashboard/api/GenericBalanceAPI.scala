@@ -15,21 +15,22 @@ import org.joda.time.DateTime
 import pl.edu.agh.crypto.dashboard.config.DataTypeEntry
 import pl.edu.agh.crypto.dashboard.model.CurrencyName
 import pl.edu.agh.crypto.dashboard.service.DataService
-import shapeless.PolyDefns.~>
 import shapeless._
 
 import scala.reflect.runtime.universe
 
-abstract class GenericBalanceAPI[F[+_], Keys <: HList](
-  val keys: Keys,
-  dataServices: DataTypeEntry ~> λ[X => F[DataService[F, X]]],
+abstract class GenericBalanceAPI[F[+_], Services <: HList](
+  service: Services,
   commonParsers: CommonParsers[F]
 )(implicit
   ef: Effect[F]
 ) extends RhoService[F] with SwaggerSyntax[F] {
+
   import commonParsers._
 
   implicit def listEncoder[T: Encoder]: EntityEncoder[F, List[T]] = jsonEncoderOf[F, List[T]]
+
+  implicit def mapEncoder[T: Encoder]: EntityEncoder[F, Map[CurrencyName, T]] = jsonEncoderOf[F, Map[CurrencyName, T]]
 
   private implicit val currencyParser: StringParser[F, CurrencyName] = new StringParser[F, CurrencyName] {
     override def parse(s: String)(implicit F: Monad[F]): ResultResponse[F, CurrencyName] = {
@@ -53,21 +54,21 @@ abstract class GenericBalanceAPI[F[+_], Keys <: HList](
   object routes extends Poly1 {
 
     implicit def allCases[T: Encoder] =
-      at[DataTypeEntry[T]] { elem =>
-        val key = elem.key
-        val description = elem.description
-        description **
-        GET / key / "of" / currencyName("queried-currency","Name of the queried currency") /
-          "for" / currencyName("compared-currency", "Name of the compared currency") +?
-          (queryFrom & queryTo)  |>> { (currency: CurrencyName, base: CurrencyName, from: Option[DateTime], to: Option[DateTime]) =>
+      at[(DataTypeEntry[T], DataService[F, T])] {
+        case (elem, service) =>
+          val key = elem.key
+          val description = elem.description
+          description **
+            GET / key / "of" / currencyName("queried-currency", "Name of the queried currency") /
+            "for" / currencyName("compared-currency", "Name of the compared currency") +?
+            (queryFrom & queryTo) |>> { (currency: CurrencyName, base: CurrencyName, from: Option[DateTime], to: Option[DateTime]) =>
 
-          for {
-            service <- dataServices(elem)
-            source <- service.getDatSource(currency)
-            result <- source.getDataOf(Set(base), from, to)
-            resp <- Ok(result)
-          } yield resp
-        }
+            for {
+              source <- service.getDataSource(currency)
+              result <- source.getDataOf(Set(base), from, to)
+              resp <- Ok(result)
+            } yield resp
+          }
       }
 
   }

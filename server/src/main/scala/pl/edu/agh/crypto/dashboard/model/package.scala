@@ -9,9 +9,6 @@ import scala.util.Try
 
 package object model {
 
-  type PricePairEntry = Map[CurrencyName, BigDecimal]
-  type TradingInfoEntry = Map[CurrencyName, TradingInfo]
-
   implicit val encodeDateTime: Encoder[DateTime] = Encoder.encodeString contramap ISODateTimeFormat.basicDateTime().print
   implicit val decodeDateTime: Decoder[DateTime] = Decoder.decodeString emapTry { s =>
     Try { ISODateTimeFormat.basicDateTime().parseDateTime(s) }

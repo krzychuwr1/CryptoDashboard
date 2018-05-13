@@ -8,17 +8,18 @@ import cats.syntax.applicative._
 import com.arangodb.{ArangoDBAsync, ArangoDatabaseAsync}
 import io.circe.{Decoder, Encoder}
 import pl.edu.agh.crypto.dashboard.model.Currency
-import pl.edu.agh.crypto.dashboard.persistence.{GraphDefinition, PersistentDataService}
+import pl.edu.agh.crypto.dashboard.persistence.{Connectable, GraphDefinition, PersistentDataService}
 import pl.edu.agh.crypto.dashboard.service.DataService
 
 import scala.collection.JavaConverters._
 import pl.edu.agh.crypto.dashboard.util.ApplyFromJava
 import shapeless.PolyDefns.~>
 
-trait DBConfig extends ApplyFromJava.Syntax {
-
-  def dbName: String
-  def config: ApplicationConfig
+abstract class DBConfig[F[_]: Effect: ApplyFromJava](
+  val memoize: F ~> F,
+  config: ApplicationConfig,
+  dbName: String
+) extends ApplyFromJava.Syntax {
 
   lazy val dbAsync: ArangoDBAsync = {
     val b = new ArangoDBAsync.Builder()
@@ -26,7 +27,7 @@ trait DBConfig extends ApplyFromJava.Syntax {
     b.build()
   }
 
-  def dataBaseAsync[F[_]: Effect: ApplyFromJava]: F[ArangoDatabaseAsync] = {
+  lazy val dataBaseAsync: F[ArangoDatabaseAsync] = memoize.apply[ArangoDatabaseAsync]{
     for {
       dbs <- dbAsync.getDatabases.defer
       databases = dbs.asScala.toSet
@@ -40,12 +41,11 @@ trait DBConfig extends ApplyFromJava.Syntax {
     } yield dbAsync.db(dbName)
   }
 
-  def dataService[F[_]: Effect: ApplyFromJava, T: Encoder: Decoder](
-    graphDefinition: GraphDefinition[Currency, T],
-    memoize: F ~> F
+  def dataService[T: Decoder: Encoder: Connectable](
+    graphDefinition: GraphDefinition[Currency, T]
   ): F[DataService[F, T]] =
     for {
-      db <- dataBaseAsync[F]
+      db <- dataBaseAsync
       service <- PersistentDataService.create[F, T](db, graphDefinition)(memoize)
     } yield service
 

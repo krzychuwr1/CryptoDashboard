@@ -8,5 +8,6 @@ import pl.edu.agh.crypto.dashboard.model.CurrencyName
   * @tparam T Type of supported data
   */
 trait DataService[F[_], T] {
-  def getDatSource(currency: CurrencyName): F[DataSource[F, T]]
+  def getDataSource(currency: CurrencyName): F[DataSource[F, T]]
+  def getDataSink(currency: CurrencyName): F[DataSink[F, T]]
 }
