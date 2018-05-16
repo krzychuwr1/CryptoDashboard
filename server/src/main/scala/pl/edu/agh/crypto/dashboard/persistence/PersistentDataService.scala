@@ -2,6 +2,9 @@ package pl.edu.agh.crypto.dashboard.persistence
 
 import cats.effect.Effect
 import cats.syntax.functor._
+import cats.syntax.traverse._
+import cats.syntax.flatMap._
+import cats.instances.list._
 import com.arangodb.ArangoDatabaseAsync
 import com.arangodb.model.{AqlQueryOptions, SkiplistIndexOptions}
 import io.circe.{Decoder, Encoder}
@@ -9,7 +12,7 @@ import org.joda.time.DateTime
 import pl.edu.agh.crypto.dashboard.model._
 import pl.edu.agh.crypto.dashboard.service._
 import pl.edu.agh.crypto.dashboard.util.ApplyFromJava
-import shapeless.PolyDefns.~>
+import cats.~>
 
 import scala.collection.concurrent.TrieMap
 
@@ -101,12 +104,11 @@ object PersistentDataService extends ApplyFromJava.Syntax {
   def create[F[_]: Effect: ApplyFromJava, T: Encoder: Decoder: Connectable](
     dbAsync: ArangoDatabaseAsync,
     graph: GraphDefinition[Currency, T],
+    supportedCurrencies: Set[Currency],
     edgeIndexes: IndexDefinition*
   )(
     memoization: F ~> F//memoization of the effect, in case of success
   ): F[DataService[F, T]] = {
-    import cats.syntax.traverse._
-    import cats.instances.list._
     import scala.collection.JavaConverters._
 
     val indexResult = edgeIndexes.toList traverse {
@@ -117,7 +119,17 @@ object PersistentDataService extends ApplyFromJava.Syntax {
         memoization(deferredIndex)
     }
 
-    indexResult.map(_ => new PersistentDataService(dbAsync, graph, memoization)).widen[DataService[F, T]]
+    val queries = new KeyValueQueries[F](dbAsync) {}
+
+    val updateResult = supportedCurrencies.toList traverse { c =>
+      queries.put(graph.fromCollection)(graph.fromKey(c), c)
+    }
+
+    for {
+      _ <- indexResult
+      _ <- updateResult
+    } yield new PersistentDataService(dbAsync, graph, memoization) : DataService[F, T]
+
   }
 
 }

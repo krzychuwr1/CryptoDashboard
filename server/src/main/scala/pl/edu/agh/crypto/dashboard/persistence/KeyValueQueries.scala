@@ -24,6 +24,8 @@ abstract class KeyValueQueries[F[_]](
     key: ID,
     elem: T
   ): F[Unit] = {
+    println(key)
+    println(bind(elem))
     dbAsync.executeModificationQuery(
       aql"""UPSERT { '_key': ${bindKey(key)} }
         |INSERT ${bind(elem)}

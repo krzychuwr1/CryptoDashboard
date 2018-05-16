@@ -8,6 +8,6 @@ case class Currency(
 )
 
 object Currency {
-  implicit val encoder: Encoder[Currency] = deriveEncoder
-  implicit val decoder: Decoder[Currency] = deriveDecoder
+  implicit val encoder: Encoder[Currency] = Encoder.forProduct2("name", "_key")(c => c.name -> c.name)
+  implicit val decoder: Decoder[Currency] = { _.downField("name").as[CurrencyName].map(Currency(_)) }
 }

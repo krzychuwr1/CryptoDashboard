@@ -6,7 +6,7 @@ import cats.effect.Effect
 import com.arangodb.ArangoDatabaseAsync
 import com.arangodb.entity.EdgeDefinition
 import pl.edu.agh.crypto.dashboard.util.ApplyFromJava
-import shapeless.PolyDefns.~>
+import cats.~>
 
 case class GraphDefinition[From, To](
   name: String,
@@ -60,7 +60,6 @@ object GraphDefinition extends ApplyFromJava.Syntax {
       collections = jcol.asScala.map(_.getName).toSet
       _ <- createCollection(collections)(fromCollection)
       _ <- createCollection(collections)(toCollection)
-      _ <- createCollection(collections)(edgeCollection)
       jgraphs <- dbAsync.getGraphs.defer
       graphs = jgraphs.asScala.map(_.getName).toSet
       _ <- createGraph(graphs)

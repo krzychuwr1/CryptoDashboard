@@ -13,17 +13,20 @@ import pl.edu.agh.crypto.dashboard.service.DataService
 
 import scala.collection.JavaConverters._
 import pl.edu.agh.crypto.dashboard.util.ApplyFromJava
-import shapeless.PolyDefns.~>
+import cats.~>
 
 abstract class DBConfig[F[_]: Effect: ApplyFromJava](
   val memoize: F ~> F,
   config: ApplicationConfig,
+  val supportedCurrency: Set[Currency],
   dbName: String
 ) extends ApplyFromJava.Syntax {
 
   lazy val dbAsync: ArangoDBAsync = {
     val b = new ArangoDBAsync.Builder()
     b.host(config.dbHost, config.dbPort)
+    b.user(config.dbUser)
+    b.password(config.dbPassword)
     b.build()
   }
 
@@ -46,7 +49,7 @@ abstract class DBConfig[F[_]: Effect: ApplyFromJava](
   ): F[DataService[F, T]] =
     for {
       db <- dataBaseAsync
-      service <- PersistentDataService.create[F, T](db, graphDefinition)(memoize)
+      service <- PersistentDataService.create[F, T](db, graphDefinition, supportedCurrency)(memoize)
     } yield service
 
 }
