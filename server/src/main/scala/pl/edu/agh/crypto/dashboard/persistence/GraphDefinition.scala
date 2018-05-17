@@ -7,21 +7,25 @@ import com.arangodb.ArangoDatabaseAsync
 import com.arangodb.entity.EdgeDefinition
 import pl.edu.agh.crypto.dashboard.util.ApplyFromJava
 import cats.~>
+import io.circe.KeyEncoder
+import shapeless.tag
+import shapeless.tag.@@
 
 case class GraphDefinition[From, To](
   name: String,
   edgeCollection: String,
   fromCollection: String,
   toCollection: String,
-  fromKey: From => String,
-  toKey: To => String
+  fromKey: From => String @@ From,
+  toKey: To => String @@ To
 ) {
-
-  def fromID(doc: From): String = s"$fromCollection/${fromKey(doc)}"
-  def toID(doc: To): String = s"$toCollection/${toKey(doc)}"
+  def fromID(implicit key: String @@ From): String = s"$fromCollection/$key"
+  def toID(implicit key: String @@ To): String = s"$toCollection/$key"
 }
 
 object GraphDefinition extends ApplyFromJava.Syntax {
+
+  implicit def taggedEncoder[T, Tag](implicit enc: KeyEncoder[T]): KeyEncoder[T @@ Tag] = enc.asInstanceOf[KeyEncoder[T @@ Tag]]
 
   import cats.syntax.applicative._
   import cats.syntax.functor._
@@ -63,13 +67,13 @@ object GraphDefinition extends ApplyFromJava.Syntax {
       jgraphs <- dbAsync.getGraphs.defer
       graphs = jgraphs.asScala.map(_.getName).toSet
       _ <- createGraph(graphs)
-    } yield GraphDefinition(
+    } yield GraphDefinition[From, To](
       name = name,
       edgeCollection = edgeCollection,
       fromCollection = fromCollection,
       toCollection = toCollection,
-      fromKey = fromKey,
-      toKey = toKey
+      fromKey = f => tag[From].apply(fromKey(f)),
+      toKey = t => tag[To].apply(toKey(t))
     )
 
     memoization(rawF)

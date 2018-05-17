@@ -1,7 +1,6 @@
 package pl.edu.agh.crypto.dashboard.model
 
 import io.circe.{Encoder, Decoder}
-import io.circe.generic.semiauto._
 
 case class Currency(
   name: CurrencyName

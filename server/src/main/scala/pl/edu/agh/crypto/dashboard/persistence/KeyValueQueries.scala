@@ -1,7 +1,7 @@
 package pl.edu.agh.crypto.dashboard.persistence
 
 import cats.effect.Effect
-import com.arangodb.ArangoDatabaseAsync
+import com.arangodb.{ArangoDBException, ArangoDatabaseAsync}
 import com.arangodb.model.{AqlQueryOptions, DocumentReadOptions}
 import io.circe.jawn.decode
 import io.circe.{Decoder, Encoder, KeyEncoder}
@@ -28,8 +28,8 @@ abstract class KeyValueQueries[F[_]](
     println(bind(elem))
     dbAsync.executeModificationQuery(
       aql"""UPSERT { '_key': ${bindKey(key)} }
-        |INSERT ${bind(elem)}
-        |REPLACE ${bind(elem)} IN ${bindCollection(collection)}
+        |INSERT MERGE(${bind(elem)}, {'_key': ${bindKey(key)}})
+        |REPLACE MERGE(${bind(elem)}, {'_key': ${bindKey(key)}}) IN ${bindCollection(collection)}
       """.stripMargin,
       new AqlQueryOptions()
     )

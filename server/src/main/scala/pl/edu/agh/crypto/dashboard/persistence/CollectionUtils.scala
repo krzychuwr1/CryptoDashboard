@@ -35,6 +35,7 @@ object CollectionUtils extends SerializationUtils with ListInstances with ApplyF
     import cats.syntax.traverse._
     import cats.syntax.monadError._
     import cats.syntax.functor._
+    import cats.instances.option._
 
     def executeQuery[T: Decoder](
       query: Query,
@@ -54,6 +55,23 @@ object CollectionUtils extends SerializationUtils with ListInstances with ApplyF
           }
         }.rethrow
 
+    }
+
+    def executeQuerySingle[T: Decoder](
+      query: Query,
+      options: AqlQueryOptions
+    )(implicit
+      ef: Effect[F],
+      ap: ApplyFromJava[F]
+    ): F[Option[T]] = {
+      dbAsync.query(query.code, query.boxParameters.asJava, options, classOf[String])
+        .defer
+        .flatMap { c =>
+          ef delay {
+            val opt = if (c.hasNext) Option(c.next()) else None
+            opt.traverse(_.deserializeTo[T])
+          }
+        }.rethrow
     }
 
     def executeModificationQuery(

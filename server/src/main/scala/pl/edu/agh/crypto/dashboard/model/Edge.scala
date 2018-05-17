@@ -6,9 +6,11 @@ import org.joda.time.DateTime
 //all fields for the edge, internal for database
 case class Edge(at: DateTime, to: CurrencyName)
 
-object Edge {
-  //encoder translating at -> _key
-  implicit val encoder: Encoder[Edge] = Encoder.forProduct2("_key", "to")(Edge.unapply(_).get)
+import shapeless.syntax.std.tuple._
 
-  implicit val decoder: Decoder[Edge] = Decoder.forProduct2("_key", "to")(Edge.apply)
+object Edge {
+  def keyOf(edge: Edge): String = s"${edge.to}-at-${edge.at.getMillis}"
+  //encoder translating at -> _key
+  implicit val encoder: Encoder[Edge] = Encoder.forProduct3("_key", "at", "to")(e => keyOf(e) +: Edge.unapply(e).get)
+  implicit val decoder: Decoder[Edge] = Decoder.forProduct2("at", "to")(Edge.apply)
 }

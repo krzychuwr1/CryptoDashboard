@@ -18,6 +18,7 @@ import pl.edu.agh.crypto.dashboard.service.{Crawler, CrawlerUtils, DataService}
 import cats.~>
 
 import scala.concurrent.duration.FiniteDuration
+import scala.util.{Failure, Success}
 
 object Launcher extends DBConfig[Task](
   λ[Task ~> Task](_.memoizeOnSuccess),
@@ -37,7 +38,7 @@ object Launcher extends DBConfig[Task](
           DateTime.now(),
           currency,
           CurrencyName("USD".ci),
-          BigDecimal(l % 13) / (l % 29),
+          BigDecimal(l % 13) / (l % 29 + 1),
           10000,
           10000
         )
@@ -124,13 +125,24 @@ object Launcher extends DBConfig[Task](
     }
   }
 
-  private val crawlerConnector = new CrawlerUtils.MonixInstance[TradingInfo](_ => Task.unit)
+  private val crawlerConnector = new CrawlerUtils.MonixInstance[TradingInfo](t => Task {
+    println("Task failed")
+    t.printStackTrace()
+  })
 
   def main(args: Array[String]): Unit = {
 
     for ((currency, crawler) <- crawlers) {
-      for (s <- tradingInfoDs; sink <- s.getDataSink(currency)) {
-        crawlerConnector.crawl(crawler, sink).runAsyncGetLast
+      val t = for {
+        s <- tradingInfoDs
+        sink <- s.getDataSink(currency)
+        _ <- crawlerConnector.crawl(crawler, sink).lastL
+      } yield {}
+      t runOnComplete {
+        case Success(_) =>
+        case Failure(f) =>
+          println(s"Crawler for $currency crashed")
+          f.printStackTrace()
       }
     }
 

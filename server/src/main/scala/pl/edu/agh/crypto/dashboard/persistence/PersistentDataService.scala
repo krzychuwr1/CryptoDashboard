@@ -13,6 +13,7 @@ import pl.edu.agh.crypto.dashboard.model._
 import pl.edu.agh.crypto.dashboard.service._
 import pl.edu.agh.crypto.dashboard.util.ApplyFromJava
 import cats.~>
+import shapeless.tag.@@
 
 import scala.collection.concurrent.TrieMap
 
@@ -51,15 +52,16 @@ class PersistentDataService[F[_]: Effect: ApplyFromJava, T: Encoder: Decoder: Co
 
       val firstOperator = from.fold("")(_ => "&&")
       val secondOperator = from.fold("")(_ => "&&")
+      implicit val fromKey: (String @@ Currency) = graph.fromKey(currency)
 
       dbAsync.executeQuery[(Edge, T)](
         aql"""
-             |FOR v, e IN [1..1] OUTBOUND ${bindKey(graph.fromID(currency))} GRAPH ${graph.name}
+             |FOR v, e IN 1..1 OUTBOUND ${bindKey(graph.fromID)} GRAPH '${graph.name}'
              | FILTER ${"e.to" in toSymbols} $firstOperator ${from.map("e._key" |>=| _)} $secondOperator ${to.map("e._key" |<=| _)}
              | RETURN [e, v]
       """.stripMargin,
         new AqlQueryOptions()
-      ).map(_.iterator.map({ case (e, v) => e.to -> v }).toMap)
+      ) map { _.iterator.map({ case (e, v) => e.to -> v }).toMap }
     }
 
   }
@@ -89,6 +91,7 @@ class PersistentDataService[F[_]: Effect: ApplyFromJava, T: Encoder: Decoder: Co
 }
 
 object PersistentDataService extends ApplyFromJava.Syntax {
+  import GraphDefinition._
 
   /**
     * Creates a persistent data service,

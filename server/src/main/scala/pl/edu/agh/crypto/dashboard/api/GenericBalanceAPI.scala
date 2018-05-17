@@ -2,8 +2,10 @@ package pl.edu.agh.crypto.dashboard.api
 
 import cats.Monad
 import cats.effect.Effect
+import cats.syntax.applicativeError._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
+import com.arangodb.ArangoDBException
 import io.circe.Encoder
 import org.http4s.EntityEncoder
 import org.http4s.circe.jsonEncoderOf
@@ -18,9 +20,10 @@ import pl.edu.agh.crypto.dashboard.service.DataService
 import shapeless._
 
 import scala.reflect.runtime.universe
+import scala.util.control.NonFatal
 
 abstract class GenericBalanceAPI[F[+_], Services <: HList](
-  service: Services,
+  services: Services,
   commonParsers: CommonParsers[F]
 )(implicit
   ef: Effect[F]
@@ -51,6 +54,21 @@ abstract class GenericBalanceAPI[F[+_], Services <: HList](
     "End of the query period, in format: yyyy-MM-dd'T'HH:mm:ssZZ",
   )
 
+  private def handleError(t: Throwable) = {
+    logger.error(t)("Request failed with")
+    t match {
+      case ce: io.circe.Error =>
+        BadGateway(s"Wrong data format up-stream: ${ce.getMessage}")
+      case dbException: ArangoDBException if dbException.getResponseCode == 404 =>
+        NotFound(dbException.getErrorMessage)
+      case dbException: ArangoDBException =>
+        InternalServerError(dbException.getErrorMessage)
+      case NonFatal(_) =>
+        InternalServerError(t.getMessage)
+    }
+
+  }
+
   object routes extends Poly1 {
 
     implicit def allCases[T: Encoder] =
@@ -63,10 +81,15 @@ abstract class GenericBalanceAPI[F[+_], Services <: HList](
             "for" / currencyName("compared-currency", "Name of the compared currency") +?
             (queryFrom & queryTo) |>> { (currency: CurrencyName, base: CurrencyName, from: Option[DateTime], to: Option[DateTime]) =>
 
+            val resF =
+              for {
+                source <- service.getDataSource(currency)
+                result <- source.getDataOf(Set(base), from, to)
+              } yield result
+
             for {
-              source <- service.getDataSource(currency)
-              result <- source.getDataOf(Set(base), from, to)
-              resp <- Ok(result)
+              result <- resF.attempt
+              resp <- result.fold(handleError, Ok(_))
             } yield resp
           }
       }
