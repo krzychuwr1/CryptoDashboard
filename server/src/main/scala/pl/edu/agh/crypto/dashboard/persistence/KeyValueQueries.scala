@@ -1,10 +1,11 @@
 package pl.edu.agh.crypto.dashboard.persistence
 
 import cats.effect.Effect
-import com.arangodb.{ArangoDBException, ArangoDatabaseAsync}
+import com.arangodb.ArangoDatabaseAsync
 import com.arangodb.model.{AqlQueryOptions, DocumentReadOptions}
 import io.circe.jawn.decode
 import io.circe.{Decoder, Encoder, KeyEncoder}
+import org.log4s.getLogger
 import pl.edu.agh.crypto.dashboard.util.ApplyFromJava
 
 
@@ -17,6 +18,8 @@ abstract class KeyValueQueries[F[_]](
   import cats.syntax.either._
   import cats.syntax.flatMap._
   import cats.syntax.monadError._
+  import cats.syntax.applicativeError._
+  private val logger = getLogger
 
   private def lift[T <: Throwable](t: T): Throwable = t
 
@@ -24,15 +27,15 @@ abstract class KeyValueQueries[F[_]](
     key: ID,
     elem: T
   ): F[Unit] = {
-    println(key)
-    println(bind(elem))
+    logger.info(s"Inserting: { '_key': $key, 'value': ${bind(elem)} }")
+
     dbAsync.executeModificationQuery(
       aql"""UPSERT { '_key': ${bindKey(key)} }
         |INSERT MERGE(${bind(elem)}, {'_key': ${bindKey(key)}})
         |REPLACE MERGE(${bind(elem)}, {'_key': ${bindKey(key)}}) IN ${bindCollection(collection)}
       """.stripMargin,
       new AqlQueryOptions()
-    )
+    ).attempt.rethrow
   }
 
   def get[T: Decoder, ID: KeyEncoder](collection: String)(

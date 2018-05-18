@@ -16,12 +16,21 @@ services:
     crypto-server:
         depends_on:
             - reverseproxy
+            - arango
         image: dashboard_server:latest
         restart: always
+        enviroment:
+            - DB_HOST=arango
     
     swagger-ui:
         depends_on:
             - reverseproxy
         image: swaggerapi/swagger-ui:latest
         restart: always
+    
+    arango:
+        image: arangodb/arangodb
+        restart: always
+        enviroment:
+         - ARANGO_ROOT_PASSWORD=""
 

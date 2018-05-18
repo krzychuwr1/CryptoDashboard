@@ -47,7 +47,7 @@ object SerializationUtils {
         .orElse(number.toInt)
         .orElse(number.toLong)
         .orElse(number.toBigInt)
-        .orElse(number.toBigDecimal)
+        /*.orElse(number.toBigDecimal) -- introducing strange behaviour, has to default to double value*/
         .getOrElse(number.toDouble)
     }
 

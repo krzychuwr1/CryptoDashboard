@@ -22,7 +22,7 @@ import scala.util.{Failure, Success}
 
 object Launcher extends DBConfig[Task](
   λ[Task ~> Task](_.memoizeOnSuccess),
-  ApplicationConfig("localhost", 8529, "root", ""),
+  ApplicationConfig.load(),
   Set(Currency(CurrencyName("BTC".ci)), Currency(CurrencyName("ETH".ci))),
   "dashboard"
 ) {
@@ -32,6 +32,8 @@ object Launcher extends DBConfig[Task](
     id: FiniteDuration,
     d: FiniteDuration
   ) extends Crawler[Observable, TradingInfo] {
+
+    private val logger = org.log4s.getLogger
     override def stream: Observable[TradingInfo] =
       Observable.intervalAtFixedRate(id, d) map { l =>
         val d = TradingInfo(
@@ -42,7 +44,7 @@ object Launcher extends DBConfig[Task](
           10000,
           10000
         )
-        println(s"Emitting: $d")
+        logger.info(s"Emitting: $d")
         d
       }
   }
@@ -125,9 +127,9 @@ object Launcher extends DBConfig[Task](
     }
   }
 
+  private val logger = org.log4s.getLogger
   private val crawlerConnector = new CrawlerUtils.MonixInstance[TradingInfo](t => Task {
-    println("Task failed")
-    t.printStackTrace()
+    logger.error(t)("Task failed")
   })
 
   def main(args: Array[String]): Unit = {
@@ -141,8 +143,8 @@ object Launcher extends DBConfig[Task](
       t runOnComplete {
         case Success(_) =>
         case Failure(f) =>
-          println(s"Crawler for $currency crashed")
-          f.printStackTrace()
+          logger.error(f)(s"Crawler for currency ${currency.name} crashed")
+          sys.exit(1)
       }
     }
 
