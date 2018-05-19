@@ -12,13 +12,14 @@ import pl.edu.agh.crypto.dashboard.util.ApplyFromJava
 import scala.collection.JavaConverters._
 
 trait CollectionUtils {
-  implicit def toDbExtension[F[_]: Effect: ApplyFromJava](dbAsync: ArangoDatabaseAsync): DbQueryExtension[F] =
+  implicit def toDbExtension[F[_] : Effect : ApplyFromJava](dbAsync: ArangoDatabaseAsync): DbQueryExtension[F] =
     new DbQueryExtension(dbAsync)
 }
 
 object CollectionUtils extends SerializationUtils with ListInstances with ApplyFromJava.Syntax {
 
   import cats.syntax.either._
+  private val logger = org.log4s.getLogger(classOf[CollectionUtils])
 
   private implicit def defaultEitherInstance[L]: Applicative[Either[L, ?]] = new Applicative[Either[L, ?]] {
     override def pure[A](x: A): Either[L, A] = x.asRight
@@ -44,6 +45,10 @@ object CollectionUtils extends SerializationUtils with ListInstances with ApplyF
       ef: Effect[F],
       ap: ApplyFromJava[F]
     ): F[List[T]] = {
+      logger.info(
+        s"""Executing:
+           | query: ${query.code}
+           | parameters: ${query.parameters}"""".stripMargin)
 
       dbAsync
         .query(query.code, query.boxParameters.asJava, options, classOf[String])
@@ -64,6 +69,11 @@ object CollectionUtils extends SerializationUtils with ListInstances with ApplyF
       ef: Effect[F],
       ap: ApplyFromJava[F]
     ): F[Option[T]] = {
+      logger.info(
+        s"""Executing:
+           | query: ${query.code}
+           | parameters: ${query.parameters}"""".stripMargin)
+
       dbAsync.query(query.code, query.boxParameters.asJava, options, classOf[String])
         .defer
         .flatMap { c =>
@@ -81,6 +91,11 @@ object CollectionUtils extends SerializationUtils with ListInstances with ApplyF
       ef: Effect[F],
       ap: ApplyFromJava[F]
     ): F[Unit] = {
+      logger.info(
+        s"""Executing:
+           | query: ${query.code}
+           | parameters: ${query.parameters}"""".stripMargin)
+
       dbAsync
         .query(query.code, query.boxParameters.asJava, options, classOf[String])
         .defer

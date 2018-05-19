@@ -135,6 +135,14 @@ object Launcher extends DBConfig[Task](
   def main(args: Array[String]): Unit = {
 
     for ((currency, crawler) <- crawlers) {
+
+      tradingInfoDs runOnComplete {
+        case Success(_) =>
+        case Failure(f) =>
+          logger.error(f)(s"Crawler for currency ${currency.name} crashed")
+          sys.exit(1)
+      }
+
       val t = for {
         s <- tradingInfoDs
         sink <- s.getDataSink(currency)

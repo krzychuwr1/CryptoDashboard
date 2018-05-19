@@ -35,11 +35,12 @@ object SerializationUtils {
     }
 
     private def jsonToJavaRepr(json: Json): Any = {
-      json.asArray.map(_.map(jsonToJavaRepr).asJava)
+      json.asArray.map(a => (a :+ Json.Null).map(jsonToJavaRepr).asJava)
         .orElse(json.asObject.map(_.toMap.mapValues(jsonToJavaRepr).asJava))
         .orElse(json.asString)
         .orElse(json.asBoolean)
-        .getOrElse(json.asNumber.map(encodeNumber).get)
+        .orElse(json.asNumber.map(encodeNumber))
+        .getOrElse(json.asNull.get)
     }
 
     private def encodeNumber(number: JsonNumber): Any = {

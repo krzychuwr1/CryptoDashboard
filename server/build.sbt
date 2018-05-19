@@ -37,6 +37,7 @@ libraryDependencies ++= Seq(
   "com.arangodb" % "arangodb-java-driver-async" % "4.3.0",
   "org.scalactic" %% "scalactic" % "3.0.5",
   "org.scalatest" %% "scalatest" % "3.0.5" % "test",
+  "com.lihaoyi" %% "sourcecode" % "0.1.4",//for extracting some additional information when integrating with java libs
   "ch.qos.logback" % "logback-classic" % "1.2.3",
 )
 

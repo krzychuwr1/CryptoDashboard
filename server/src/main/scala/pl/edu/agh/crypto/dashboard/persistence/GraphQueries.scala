@@ -42,9 +42,10 @@ abstract class GraphQueries[F[_], From: Encoder : Decoder, To: Encoder : Decoder
     toKey: String @@ To
   ): F[Unit] = {
     val edge = edgeOf(from, to, edgeFields)
+    val Right(key) = edge.hcursor.downField("_key").as[String]//should be here, if not just panic
     dbAsync.executeModificationQuery(
       aql"""
-           |UPSERT ${bind(edge)} INSERT ${bind(edge)} REPLACE ${bind(edge)} IN ${bindCollection(graph.edgeCollection)}
+           |UPSERT { '_key': ${bindKey(key)}} INSERT ${bind(edge)} REPLACE ${bind(edge)} IN ${bindCollection(graph.edgeCollection)}
            |""".stripMargin,
       new AqlQueryOptions()
     )

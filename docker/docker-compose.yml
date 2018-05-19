@@ -1,4 +1,4 @@
-version: '2'
+version: '3'
 
 services:
     reverseproxy:
@@ -19,7 +19,7 @@ services:
             - arango
         image: dashboard_server:latest
         restart: always
-        enviroment:
+        environment:
             - DB_HOST=arango
     
     swagger-ui:
@@ -31,6 +31,8 @@ services:
     arango:
         image: arangodb/arangodb
         restart: always
-        enviroment:
-         - ARANGO_ROOT_PASSWORD=""
+        environment:
+         - ARANGO_ROOT_PASSWORD=
+        ports:
+            - 89:8529
 

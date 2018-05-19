@@ -49,4 +49,9 @@ class QueryInterpolationTest extends FlatSpec with Matchers
     query.parameters("var_1") should equal(42)
   }
 
+  it should "bind collections as arguments" in {
+    val query = aql"FOR c IN 'test' FILTER c IN ${bind(List("test1", "test2", "test3"))} RETURN c"
+    query.code should equal("FOR c IN 'test' FILTER c IN @var_1 RETURN c")
+  }
+
 }
