@@ -48,7 +48,7 @@ class PersistentDataService[F[_]: Effect: ApplyFromJava, T: Encoder: Decoder: Co
       toSymbols: Set[CurrencyName],
       from: Option[DateTime],
       to: Option[DateTime]
-    ): F[Map[CurrencyName, T]] = {
+    ): F[Map[CurrencyName, Seq[T]]] = {
 
       val firstOperator = from.fold("")(_ => "&&")
       val secondOperator = from.fold("")(_ => "&&")
@@ -61,7 +61,7 @@ class PersistentDataService[F[_]: Effect: ApplyFromJava, T: Encoder: Decoder: Co
              | RETURN [e, v]
       """.stripMargin,
         new AqlQueryOptions()
-      ) map { _.iterator.map({ case (e, v) => e.to -> v }).toMap }
+      ) map { _.iterator.toStream.groupBy({ case (e, _) => e.to }).mapValues(_.unzip._2) }
     }
 
   }
