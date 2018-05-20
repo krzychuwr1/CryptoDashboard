@@ -10,6 +10,10 @@ val CirceVersion = "0.9.3"
 
 enablePlugins(DockerPlugin)
 
+resolvers += Resolver.sonatypeRepo("releases")
+
+addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.6")
+
 scalacOptions ++= Seq(
   "-deprecation",
   "-unchecked",
@@ -29,7 +33,12 @@ libraryDependencies ++= Seq(
   "io.monix" %% "monix" % MonixVersion,
   "com.github.pureconfig" %% "pureconfig" % "0.8.0",
   "io.circe" %% "circe-generic" % CirceVersion,
-  "io.circe" %% "circe-core" % CirceVersion
+  "io.circe" %% "circe-core" % CirceVersion,
+  "com.arangodb" % "arangodb-java-driver-async" % "4.3.0",
+  "org.scalactic" %% "scalactic" % "3.0.5",
+  "org.scalatest" %% "scalatest" % "3.0.5" % "test",
+  "com.lihaoyi" %% "sourcecode" % "0.1.4",//for extracting some additional information when integrating with java libs
+  "ch.qos.logback" % "logback-classic" % "1.2.3",
 )
 
 mainClass in assembly := Some("pl.edu.agh.crypto.dashboard.Launcher")

@@ -1,4 +1,4 @@
-version: '3'
+version: '2'
 
 services:
     reverseproxy:
@@ -7,32 +7,14 @@ services:
             - 80:8080
         restart: always
 
-    crypto-dashboard:
-        depends_on:
-            - reverseproxy
-        image: dashboard_blazor:latest
-        restart: always
-
     crypto-server:
         depends_on:
             - reverseproxy
-            - arango
         image: dashboard_server:latest
         restart: always
-        environment:
-            - DB_HOST=arango
-    
+
     swagger-ui:
         depends_on:
             - reverseproxy
         image: swaggerapi/swagger-ui:latest
         restart: always
-    
-    arango:
-        image: arangodb/arangodb
-        restart: always
-        environment:
-         - ARANGO_ROOT_PASSWORD=
-        ports:
-            - 89:8529
-
