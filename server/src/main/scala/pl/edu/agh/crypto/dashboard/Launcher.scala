@@ -12,7 +12,7 @@ import org.http4s.server.blaze.BlazeBuilder
 import org.joda.time.DateTime
 import pl.edu.agh.crypto.dashboard.api.{CommonParsers, GenericBalanceAPI}
 import pl.edu.agh.crypto.dashboard.config.{ApplicationConfig, DBConfig, DataTypeEntry}
-import pl.edu.agh.crypto.dashboard.model.{Currency, CurrencyName, PriceInfo, TradingInfo}
+import pl.edu.agh.crypto.dashboard.model.{Currency, CurrencyName, Indicators, PriceInfo, TradingInfo}
 import pl.edu.agh.crypto.dashboard.persistence.{Connectable, GraphDefinition}
 import pl.edu.agh.crypto.dashboard.service.{Crawler, CrawlerUtils, DataService}
 import cats.~>
@@ -65,6 +65,21 @@ object Launcher extends DBConfig[Task](
         "data",
         _.name.name.value,
         keyOf
+      )
+    } yield definition
+
+  private val indicatorGraph: Task[GraphDefinition[Currency, Indicators]] =
+    for {
+      db <- dataBaseAsync
+      definition <- GraphDefinition.create[Task, Currency, Indicators](
+        db, memoize
+      )(
+        "indicators",
+        "indicator-of",
+        "currency",
+        "data",
+        _.name.name.value,
+        _.key
       )
     } yield definition
 

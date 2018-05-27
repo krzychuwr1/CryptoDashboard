@@ -39,6 +39,7 @@ libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "3.0.5" % "test",
   "com.lihaoyi" %% "sourcecode" % "0.1.4",//for extracting some additional information when integrating with java libs
   "ch.qos.logback" % "logback-classic" % "1.2.3",
+  "org.ta4j" % "ta4j-core" % "0.11"
 )
 
 mainClass in assembly := Some("pl.edu.agh.crypto.dashboard.Launcher")
