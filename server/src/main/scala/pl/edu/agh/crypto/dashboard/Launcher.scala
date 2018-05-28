@@ -9,12 +9,12 @@ import org.http4s.implicits._
 import org.http4s.rho.RhoService
 import org.http4s.rho.swagger.SwaggerSupport
 import org.http4s.server.blaze.BlazeBuilder
-import org.joda.time.DateTime
+import org.joda.time.{DateTime, Days}
 import pl.edu.agh.crypto.dashboard.api.{CommonParsers, GenericBalanceAPI}
 import pl.edu.agh.crypto.dashboard.config.{ApplicationConfig, DBConfig, DataTypeEntry}
-import pl.edu.agh.crypto.dashboard.model.{Currency, CurrencyName, Indicators, PriceInfo, TradingInfo}
+import pl.edu.agh.crypto.dashboard.model.{Currency, CurrencyName, DailyTradingInfo, Indicators, PriceInfo, TradingInfo}
 import pl.edu.agh.crypto.dashboard.persistence.{Connectable, GraphDefinition}
-import pl.edu.agh.crypto.dashboard.service.{Crawler, CrawlerUtils, DataService}
+import pl.edu.agh.crypto.dashboard.service.{Crawler, CrawlerUtils, DataService, IndicatorService}
 import cats.~>
 
 import scala.concurrent.duration.FiniteDuration
@@ -50,7 +50,35 @@ object Launcher extends DBConfig[Task](
   }
 
   import scala.concurrent.duration._
+
+  private class DailyMockCrawler(
+    currency: CurrencyName
+  ) extends Crawler[Observable, DailyTradingInfo] {
+    private val startedDate = DateTime.now()
+    private val logger = org.log4s.getLogger
+    override def stream: Observable[DailyTradingInfo] =
+      Observable.intervalAtFixedRate(15.seconds, 15.seconds) map { l =>
+        val low = 10000 - BigDecimal((l + 3999213) % 1000)
+        val high = low + BigDecimal((l + 2334113) % 1000)
+        val open = low + BigDecimal((l + 123457) % 100 )
+        val close = high - BigDecimal((l + 754321) % 100)
+        val d = DailyTradingInfo(
+          startedDate.plus(Days.days(1)),
+          close = close,
+          high = high,
+          low = low,
+          open = open,
+          volume = 100000,
+          fromSymbol = currency,
+          toSymbol = CurrencyName("USD".ci)
+        )
+        logger.info(s"Emitting: $d")
+        d
+      }
+  }
+
   private val crawlers = supportedCurrency.map(c => c.name -> new MockCrawler(c.name, 10.seconds, 10.seconds))
+  private val dailyCrawler = supportedCurrency.map(c => c.name -> new DailyMockCrawler(c.name))
 
   private def graph[T](keyOf: T => String) =
     for {
@@ -68,10 +96,10 @@ object Launcher extends DBConfig[Task](
       )
     } yield definition
 
-  private val indicatorGraph: Task[GraphDefinition[Currency, Indicators]] =
+  private val dailyGraph: Task[GraphDefinition[Currency, DailyTradingInfo]] =
     for {
       db <- dataBaseAsync
-      definition <- GraphDefinition.create[Task, Currency, Indicators](
+      definition <- GraphDefinition.create[Task, Currency, DailyTradingInfo](
         db, memoize
       )(
         "indicators",
@@ -100,6 +128,10 @@ object Launcher extends DBConfig[Task](
 
   private val tradingInfoDs = dataService[TradingInfo](tiKey)
 
+  private val dailyService = dailyGraph.flatMap(dataService[DailyTradingInfo])
+
+  private val indicatorService: Task[DataService[Task, Indicators]] = dailyService.map(new IndicatorService(_))
+
   import shapeless._
 
   private val priceEntry = DataTypeEntry[PriceInfo](
@@ -112,13 +144,24 @@ object Launcher extends DBConfig[Task](
     "complete information about specific currency pair"
   )
 
+  private val dailyEntry = DataTypeEntry[DailyTradingInfo](
+    "daily-info",
+    "information from an entire day"
+  )
+
+  private val indicatorEntry = DataTypeEntry[Indicators](
+    "indicatros",
+    "basic economic indicators calculated for the given currency"
+  )
+
   private val dataServices = for {
-    ps <- dataService[PriceInfo](prKey)
-    is <- dataService[TradingInfo](tiKey)
-  } yield ps :: is :: HNil
+    prices <- dataService[PriceInfo](prKey)
+    infos <- tradingInfoDs
+    daily <- dailyService
+    indicators <- indicatorService
+  } yield prices :: infos :: daily :: indicators :: HNil
 
-  private val keys = priceEntry :: tradingEntry :: HNil
-
+  private val keys = priceEntry :: tradingEntry :: dailyEntry :: indicatorEntry :: HNil
 
   lazy val genericAPI = dataServices map { s =>
     val apiConfig = keys.zip(s)
@@ -143,7 +186,8 @@ object Launcher extends DBConfig[Task](
   }
 
   private val logger = org.log4s.getLogger
-  private val crawlerConnector = new CrawlerUtils.MonixInstance[TradingInfo](t => Task {
+
+  private def crawlerConnector[T] = new CrawlerUtils.MonixInstance[T](t => Task {
     logger.error(t)("Task failed")
   })
 
@@ -164,6 +208,29 @@ object Launcher extends DBConfig[Task](
         _ <- crawlerConnector.crawl(crawler, sink).lastL
       } yield {}
       t runOnComplete {
+        case Success(_) =>
+        case Failure(f) =>
+          logger.error(f)(s"Crawler for currency ${currency.name} crashed")
+          sys.exit(1)
+      }
+    }
+
+    for ((currency, crawler) <- dailyCrawler) {
+
+      dailyService runOnComplete {
+        case Success(_) =>
+        case Failure(f) =>
+          logger.error(f)(s"Crawler for currency ${currency.name} crashed")
+          sys.exit(1)
+      }
+
+      val dt = for {
+        s <- dailyService
+        sink <- s.getDataSink(currency)
+        _ <- crawlerConnector.crawl(crawler, sink).lastL
+      } yield {}
+
+      dt runOnComplete {
         case Success(_) =>
         case Failure(f) =>
           logger.error(f)(s"Crawler for currency ${currency.name} crashed")
