@@ -63,7 +63,7 @@ object Launcher extends DBConfig[Task](
         val open = low + BigDecimal((l + 123457) % 100 )
         val close = high - BigDecimal((l + 754321) % 100)
         val d = DailyTradingInfo(
-          startedDate.plus(Days.days(1)),
+          startedDate.plus(Days.days(l.toInt)),
           close = close,
           high = high,
           low = low,
@@ -102,8 +102,8 @@ object Launcher extends DBConfig[Task](
       definition <- GraphDefinition.create[Task, Currency, DailyTradingInfo](
         db, memoize
       )(
-        "indicators",
-        "indicator-of",
+        "daily-data",
+        "daily-of",
         "currency",
         "data",
         _.name.name.value,
@@ -150,7 +150,7 @@ object Launcher extends DBConfig[Task](
   )
 
   private val indicatorEntry = DataTypeEntry[Indicators](
-    "indicatros",
+    "indicators",
     "basic economic indicators calculated for the given currency"
   )
 
@@ -169,6 +169,7 @@ object Launcher extends DBConfig[Task](
       apiConfig,
       new CommonParsers[Task] {}
     ) {
+
       apiConfig.map(routes).toList.foreach(_ => ())
     }
   }
