@@ -1,6 +1,7 @@
 package pl.edu.agh.crypto.dashboard.service
 
 import cats.effect.Effect
+import cats.syntax.applicativeError._
 import io.circe.Decoder
 import monix.eval.Task
 import monix.reactive.Observable
@@ -16,8 +17,16 @@ class HttpCrawler[F[_]: Effect, T: Decoder](
   client: Client[F],
   interval: FiniteDuration
 ) extends Crawler[Observable, T] with LowPriorityConversion[F] {
+  private val log = org.log4s.getLogger
+
   override def stream: Observable[T] = Observable intervalAtFixedRate interval mapEval { _ =>
-    client.expect[T]("http://my-super-uri.com/my/super/path?my=&great=&query=")
+    client.expect[T]("http://my-super-uri.com/my/super/path?my=&great=&query=").attempt
+  } flatMap {
+    case Right(t) =>
+      Observable.now(t)
+    case Left(t) =>
+      log.warn(t)("Api request failed with")
+      Observable.empty[T]
   }
 }
 
