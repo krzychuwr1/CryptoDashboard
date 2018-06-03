@@ -18,6 +18,7 @@ import pl.edu.agh.crypto.dashboard.model.{Currency, CurrencyName, DailyTradingIn
 import pl.edu.agh.crypto.dashboard.persistence.{Connectable, GraphDefinition}
 import pl.edu.agh.crypto.dashboard.service._
 
+import scala.reflect.ClassTag
 import scala.util.{Failure, Success}
 
 object Launcher extends DBConfig[Task](
@@ -173,11 +174,14 @@ object Launcher extends DBConfig[Task](
       dataService: DataService[Task, T]
     )(
       byCurrency: T => CurrencyName
+    )(
+      implicit ct: ClassTag[T]
     ): Task[Unit] = {
 
       val grouped = crawler.stream.groupBy(byCurrency)
 
       val running = grouped map { obs =>
+        logger.info(s"Running crawler for ${obs.key.name}, type: ${ct.runtimeClass.getSimpleName}")
         val runObs = for {
           sink <- Observable.fromTask(dataService.getDataSink(obs.key))
           res <- obs.mapTask(sink.saveData)
@@ -199,18 +203,25 @@ object Launcher extends DBConfig[Task](
       _ <- runCrawler(rc, ds)(_.fromSymbol)
     } yield ()
 
-    val historicT: Task[Unit] = for {
-      ds <- dailyService
-      hc <- historicCrawler
-      _ <- runCrawler(hc, ds)(_.fromSymbol)
-    } yield ()
+//    val historicT: Task[Unit] = for {
+//      ds <- dailyService
+//      hc <- historicCrawler
+//      _ <- runCrawler(hc, ds)(_.fromSymbol)
+//    } yield ()
 
-    Task.zip2(dailyT, historicT).runOnComplete({
+    dailyT.runOnComplete({
       case Success(_) =>
       case Failure(t) =>
         logger.error(t)("Crawlers failed")
         sys.exit(1)
     })
+
+//    historicT.runOnComplete({
+//      case Success(_) =>
+//      case Failure(t) =>
+//        logger.error(t)("Crawlers failed")
+//        sys.exit(1)
+//    })
 
     val app = new App(genericAPI)
     app.main(args)
