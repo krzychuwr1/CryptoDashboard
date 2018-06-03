@@ -27,12 +27,14 @@ object Launcher extends DBConfig[Task](
   Set(Currency(CurrencyName("BTC".ci)), Currency(CurrencyName("ETH".ci))),
   "dashboard"
 ) {
-
   import scala.concurrent.duration._
+  private val logger = org.log4s.getLogger
+
+  private val targetCurrencies = Set(CurrencyName("USD".ci), CurrencyName("EUR".ci))
 
   private val historicalCrawlerConfig = CrawlerConfig(
     supportedCurrency.map(_.name),
-    Set(CurrencyName("USD".ci), CurrencyName("EUR".ci)),
+    targetCurrencies,
     1.second,
     "https://min-api.cryptocompare.com/data/histoday",
     DateTime.now() minusDays 100
@@ -49,10 +51,6 @@ object Launcher extends DBConfig[Task](
     c,
     realTimeCrawlerConfig,
     _.toTradingInfo(DateTime.now())
-  ))
-  private val historicCrawler = client.map(c => new HistoricalHttpCrawler[Task, DailyTradingInfo](
-    c,
-    historicalCrawlerConfig
   ))
 
   private def graph[T](keyOf: T => String) =
@@ -104,6 +102,24 @@ object Launcher extends DBConfig[Task](
   private val tradingInfoDs = dataService[TradingInfo](tiKey)
 
   private val dailyService = dailyGraph.flatMap(dataService[DailyTradingInfo])
+
+  private val historicCrawler = {
+    import cats.syntax.option._
+    for {
+      ds <- dailyService
+      c <- client
+      source <- ds.getDataSource(supportedCurrency.head.name)
+      presentData <- source.getDataOf(targetCurrencies, DateTime.now().minusDays(2).some, DateTime.now().some)
+    } yield {
+      val nonEmpty = presentData.flatMap({ case (_, v) => v }).nonEmpty
+      logger.info(s"Creating historic crawler, initialised: $nonEmpty")
+      new HistoricalHttpCrawler[Task, DailyTradingInfo](
+        c,
+        historicalCrawlerConfig,
+        nonEmpty
+      )
+    }
+  }
 
   private val indicatorService: Task[DataService[Task, Indicators]] = dailyService.map(new IndicatorService(_))
 
@@ -161,8 +177,6 @@ object Launcher extends DBConfig[Task](
     }
   }
 
-  private val logger = org.log4s.getLogger
-
   private def crawlerConnector[T] = new CrawlerUtils.MonixInstance[T](t => Task {
     logger.error(t)("Task failed")
   })
@@ -203,11 +217,11 @@ object Launcher extends DBConfig[Task](
       _ <- runCrawler(rc, ds)(_.fromSymbol)
     } yield ()
 
-//    val historicT: Task[Unit] = for {
-//      ds <- dailyService
-//      hc <- historicCrawler
-//      _ <- runCrawler(hc, ds)(_.fromSymbol)
-//    } yield ()
+    val historicT: Task[Unit] = for {
+      ds <- dailyService
+      hc <- historicCrawler
+      _ <- runCrawler(hc, ds)(_.fromSymbol)
+    } yield ()
 
     dailyT.runOnComplete({
       case Success(_) =>
@@ -216,12 +230,12 @@ object Launcher extends DBConfig[Task](
         sys.exit(1)
     })
 
-//    historicT.runOnComplete({
-//      case Success(_) =>
-//      case Failure(t) =>
-//        logger.error(t)("Crawlers failed")
-//        sys.exit(1)
-//    })
+    historicT.runOnComplete({
+      case Success(_) =>
+      case Failure(t) =>
+        logger.error(t)("Crawlers failed")
+        sys.exit(1)
+    })
 
     val app = new App(genericAPI)
     app.main(args)

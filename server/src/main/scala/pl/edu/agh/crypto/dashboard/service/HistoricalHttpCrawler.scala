@@ -17,7 +17,8 @@ import scala.util.{Failure, Success}
 
 class HistoricalHttpCrawler[F[_] : Effect, T](
   client: Client[F],
-  config: CrawlerConfig
+  config: CrawlerConfig,
+  initialized: Boolean
 )(implicit
   decoderFactory: (CurrencyName, CurrencyName) => Decoder[T]
 ) extends HttpCrawler[F, T](
@@ -31,7 +32,10 @@ class HistoricalHttpCrawler[F[_] : Effect, T](
       implicit val decoder: Decoder[T] = decoderFactory(l, r)
       val days = Days.daysBetween(startFrom, DateTime.now()).getDays
       client.expect[HistoricalResponse[T]](s"$path?fsym=$f&tsym=$t&limit=$days")
-  } flatMap { r => Observable.fromIterable(r.data) }
+  } flatMap { r =>
+    log.info(s"Received historic data ${r.data.mkString("[ ", ", ", "]")}")
+    Observable.fromIterable(r.data)
+  }
 
   private val realTimeData: Observable[T] = Observable.intervalAtFixedRate(1.day, 1.day) flatMap { _ =>
     forEveryCurrency {
@@ -47,7 +51,7 @@ class HistoricalHttpCrawler[F[_] : Effect, T](
       Observable.empty
   }
 
-  override def stream: Observable[T] = catchupHistory ++ realTimeData
+  override def stream: Observable[T] = if (!initialized) catchupHistory ++ realTimeData else realTimeData
 }
 
 
@@ -78,7 +82,7 @@ object HistoricalHttpCrawler {
 
     val res = for {
       client <- Http1Client[Task]()
-      crawler = new HistoricalHttpCrawler[Task, DailyTradingInfo](client, config)
+      crawler = new HistoricalHttpCrawler[Task, DailyTradingInfo](client, config, false)
       res <- crawler.stream.lastOptionL
     } yield res
 
