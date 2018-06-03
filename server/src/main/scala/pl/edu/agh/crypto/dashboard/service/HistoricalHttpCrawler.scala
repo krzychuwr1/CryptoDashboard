@@ -7,15 +7,17 @@ import monix.eval.Task
 import monix.reactive.Observable
 import org.http4s.client.Client
 import org.http4s.client.blaze.Http1Client
+import org.joda.time.DateTime
 import pl.edu.agh.crypto.dashboard.util.LowPriorityConversion
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
-class HttpCrawler[F[_]: Effect, T: Decoder](
+class HistoricalHttpCrawler[F[_]: Effect, T: Decoder](
   client: Client[F],
-  interval: FiniteDuration
+  interval: FiniteDuration,
+  startFrom: DateTime
 ) extends Crawler[Observable, T] with LowPriorityConversion[F] {
   private val log = org.log4s.getLogger
 
@@ -31,7 +33,7 @@ class HttpCrawler[F[_]: Effect, T: Decoder](
 }
 
 
-object HttpCrawler {
+object HistoricalHttpCrawler {
 
   def main(args: Array[String]): Unit = {
     import monix.execution.Scheduler.Implicits.global
@@ -39,7 +41,7 @@ object HttpCrawler {
 
     val res = for {
       client <- Http1Client[Task]()
-      crawler = new HttpCrawler[Task, String](client, 10.seconds)
+      crawler = new HistoricalHttpCrawler[Task, String](client, 10.seconds, DateTime.now())
       res <- crawler.stream.lastOptionL
     } yield res
 
