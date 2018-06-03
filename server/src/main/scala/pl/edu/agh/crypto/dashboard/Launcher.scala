@@ -1,23 +1,23 @@
 package pl.edu.agh.crypto.dashboard
 
+import cats.~>
 import fs2.StreamApp
 import io.circe.{Decoder, Encoder}
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import monix.reactive.Observable
+import org.http4s.client.blaze.Http1Client
 import org.http4s.implicits._
 import org.http4s.rho.RhoService
 import org.http4s.rho.swagger.SwaggerSupport
 import org.http4s.server.blaze.BlazeBuilder
-import org.joda.time.{DateTime, Days}
+import org.joda.time.DateTime
 import pl.edu.agh.crypto.dashboard.api.{CommonParsers, GenericBalanceAPI}
 import pl.edu.agh.crypto.dashboard.config.{ApplicationConfig, DBConfig, DataTypeEntry}
-import pl.edu.agh.crypto.dashboard.model.{Currency, CurrencyName, DailyTradingInfo, Indicators, PriceInfo, TradingInfo}
+import pl.edu.agh.crypto.dashboard.model.{Currency, CurrencyName, DailyTradingInfo, Indicators, PriceInfo, RawTradingInfo, TradingInfo}
 import pl.edu.agh.crypto.dashboard.persistence.{Connectable, GraphDefinition}
-import pl.edu.agh.crypto.dashboard.service.{Crawler, CrawlerUtils, DataService, IndicatorService}
-import cats.~>
+import pl.edu.agh.crypto.dashboard.service._
 
-import scala.concurrent.duration.FiniteDuration
 import scala.util.{Failure, Success}
 
 object Launcher extends DBConfig[Task](
@@ -27,59 +27,32 @@ object Launcher extends DBConfig[Task](
   "dashboard"
 ) {
 
-  private class MockCrawler(
-    currency: CurrencyName,
-    id: FiniteDuration,
-    d: FiniteDuration
-  ) extends Crawler[Observable, TradingInfo] {
-
-    private val logger = org.log4s.getLogger
-    override def stream: Observable[TradingInfo] =
-      Observable.intervalAtFixedRate(id, d) map { l =>
-        val d = TradingInfo(
-          DateTime.now(),
-          currency,
-          CurrencyName("USD".ci),
-          BigDecimal(l % 13) / (l % 29 + 1),
-          10000,
-          10000
-        )
-        logger.info(s"Emitting: $d")
-        d
-      }
-  }
-
   import scala.concurrent.duration._
 
-  private class DailyMockCrawler(
-    currency: CurrencyName
-  ) extends Crawler[Observable, DailyTradingInfo] {
-    private val startedDate = DateTime.now()
-    private val logger = org.log4s.getLogger
-    override def stream: Observable[DailyTradingInfo] =
-      Observable.intervalAtFixedRate(15.seconds, 15.seconds) map { l =>
-        val low = 10000 - BigDecimal((l + 3999213) % 1000)
-        val high = low + BigDecimal((l + 2334113) % 1000)
-        val open = low + BigDecimal((l + 123457) % 100 )
-        val close = high - BigDecimal((l + 754321) % 100)
-        val d = DailyTradingInfo(
-          startedDate.plus(Days.days(l.toInt)),
-          close = close,
-          high = high,
-          low = low,
-          open = open,
-          volumefrom = 100000,
-          volumeto = 100000,
-          fromSymbol = currency,
-          toSymbol = CurrencyName("USD".ci)
-        )
-        logger.info(s"Emitting: $d")
-        d
-      }
-  }
+  private val historicalCrawlerConfig = CrawlerConfig(
+    supportedCurrency.map(_.name),
+    Set(CurrencyName("USD".ci), CurrencyName("EUR".ci)),
+    1.second,
+    "https://min-api.cryptocompare.com/data/histoday",
+    DateTime.now() minusDays 100
+  )
 
-  private val crawlers = supportedCurrency.map(c => c.name -> new MockCrawler(c.name, 10.seconds, 10.seconds))
-  private val dailyCrawler = supportedCurrency.map(c => c.name -> new DailyMockCrawler(c.name))
+  private val realTimeCrawlerConfig = historicalCrawlerConfig.copy(
+    interval = 1.minute,
+    path = "https://min-api.cryptocompare.com/data/pricemultifull"
+  )
+
+  private val client = Http1Client[Task]()
+
+  private val realTimeCrawler = client.map(c => new RealTimeCrawler[Task, RawTradingInfo, TradingInfo](
+    c,
+    realTimeCrawlerConfig,
+    _.toTradingInfo(DateTime.now())
+  ))
+  private val historicCrawler = client.map(c => new HistoricalHttpCrawler[Task, DailyTradingInfo](
+    c,
+    historicalCrawlerConfig
+  ))
 
   private def graph[T](keyOf: T => String) =
     for {
@@ -195,50 +168,49 @@ object Launcher extends DBConfig[Task](
 
   def main(args: Array[String]): Unit = {
 
-    for ((currency, crawler) <- crawlers) {
+    def runCrawler[T](
+      crawler: Crawler[Observable, T],
+      dataService: DataService[Task, T]
+    )(
+      byCurrency: T => CurrencyName
+    ): Task[Unit] = {
 
-      tradingInfoDs runOnComplete {
-        case Success(_) =>
-        case Failure(f) =>
-          logger.error(f)(s"Crawler for currency ${currency.name} crashed")
-          sys.exit(1)
+      val grouped = crawler.stream.groupBy(byCurrency)
+
+      val running = grouped map { obs =>
+        val runObs = for {
+          sink <- Observable.fromTask(dataService.getDataSink(obs.key))
+          res <- obs.mapTask(sink.saveData)
+        } yield res
+        runObs.lastOptionL.runOnComplete({
+          case Success(_) =>
+          case Failure(err) =>
+            logger.error(err)(s"Crawler for currency: ${obs.key.name} failed")
+            sys.exit(1)
+        })
       }
 
-      val t = for {
-        s <- tradingInfoDs
-        sink <- s.getDataSink(currency)
-        _ <- crawlerConnector.crawl(crawler, sink).lastL
-      } yield {}
-      t runOnComplete {
-        case Success(_) =>
-        case Failure(f) =>
-          logger.error(f)(s"Crawler for currency ${currency.name} crashed")
-          sys.exit(1)
-      }
+      running.lastOptionL.map(_ => {})
     }
 
-    for ((currency, crawler) <- dailyCrawler) {
+    val dailyT: Task[Unit] = for {
+      ds <- tradingInfoDs
+      rc <- realTimeCrawler
+      _ <- runCrawler(rc, ds)(_.fromSymbol)
+    } yield ()
 
-      dailyService runOnComplete {
-        case Success(_) =>
-        case Failure(f) =>
-          logger.error(f)(s"Crawler for currency ${currency.name} crashed")
-          sys.exit(1)
-      }
+    val historicT: Task[Unit] = for {
+      ds <- dailyService
+      hc <- historicCrawler
+      _ <- runCrawler(hc, ds)(_.fromSymbol)
+    } yield ()
 
-      val dt = for {
-        s <- dailyService
-        sink <- s.getDataSink(currency)
-        _ <- crawlerConnector.crawl(crawler, sink).lastL
-      } yield {}
-
-      dt runOnComplete {
-        case Success(_) =>
-        case Failure(f) =>
-          logger.error(f)(s"Crawler for currency ${currency.name} crashed")
-          sys.exit(1)
-      }
-    }
+    Task.zip2(dailyT, historicT).runOnComplete({
+      case Success(_) =>
+      case Failure(t) =>
+        logger.error(t)("Crawlers failed")
+        sys.exit(1)
+    })
 
     val app = new App(genericAPI)
     app.main(args)

@@ -1,8 +1,7 @@
 package pl.edu.agh.crypto.dashboard.service
 
 import cats.effect.Effect
-import cats.syntax.applicativeError._
-import io.circe.Decoder
+import io.circe.{Decoder, Encoder}
 import monix.eval.Task
 import monix.reactive.Observable
 import org.http4s.client.Client
@@ -21,24 +20,11 @@ class HistoricalHttpCrawler[F[_] : Effect, T](
   config: CrawlerConfig
 )(implicit
   decoderFactory: (CurrencyName, CurrencyName) => Decoder[T]
-) extends Crawler[Observable, T] with LowPriorityConversion[F] {
+) extends HttpCrawler[F, T](
+  config
+) with LowPriorityConversion[F] {
   private val log = org.log4s.getLogger
-
   import config._
-
-  private def forEveryCurrency[R](code: (CurrencyName, CurrencyName) => F[R]): Observable[R] = {
-    val obs = for {
-      f <- Observable.fromIterable(currencyFrom)
-      t <- Observable.fromIterable(currencyTo)
-    } yield f -> t
-    obs.mapEval(code.tupled(_).attempt).flatMap({
-      case Right(t) =>
-        Observable.now(t)
-      case Left(t) =>
-        log.warn(t)("Api request failed with")
-        Observable.empty[R]
-    }).delayOnNext(interval)
-  }
 
   private val catchupHistory: Observable[T] = forEveryCurrency {
     case (l@CurrencyName(f), r@CurrencyName(t)) =>
@@ -73,15 +59,9 @@ object HistoricalHttpCrawler {
 
   object HistoricalResponse {
     implicit def decoder[T: Decoder]: Decoder[HistoricalResponse[T]] = Decoder.forProduct1("Data")(HistoricalResponse.apply)
+    //test only
+    implicit def encoder[T: Encoder]: Encoder[HistoricalResponse[T]] = Encoder.forProduct1("Data")(_.data)
   }
-
-  case class CrawlerConfig(
-    currencyFrom: Set[CurrencyName],
-    currencyTo: Set[CurrencyName],
-    interval: FiniteDuration,
-    path: String,
-    startFrom: DateTime
-  )
 
   def main(args: Array[String]): Unit = {
     import monix.execution.Scheduler.Implicits.global
