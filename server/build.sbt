@@ -35,6 +35,7 @@ libraryDependencies ++= Seq(
   "com.github.pureconfig" %% "pureconfig" % "0.8.0",
   "io.circe" %% "circe-generic" % CirceVersion,
   "io.circe" %% "circe-core" % CirceVersion,
+  "io.circe" %% "circe-generic-extras" % CirceVersion,
   "com.arangodb" % "arangodb-java-driver-async" % "4.3.0",
   "org.scalactic" %% "scalactic" % "3.0.5",
   "org.scalatest" %% "scalatest" % "3.0.5" % "test",

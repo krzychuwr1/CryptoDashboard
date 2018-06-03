@@ -1,7 +1,7 @@
 package pl.edu.agh.crypto.dashboard
 
 import io.circe.{Decoder, Encoder}
-import org.http4s.util.CaseInsensitiveString
+import org.http4s.implicits._
 import org.joda.time.DateTime
 import org.joda.time.format.ISODateTimeFormat
 
@@ -12,8 +12,9 @@ package object model {
   implicit val encodeDateTime: Encoder[DateTime] = Encoder.encodeString contramap ISODateTimeFormat.basicDateTime().print
   implicit val decodeDateTime: Decoder[DateTime] = Decoder.decodeString emapTry { s =>
     Try { ISODateTimeFormat.basicDateTime().parseDateTime(s) }
-  }
+  } or { Decoder.decodeLong.map(new DateTime(_)) }
 
   implicit val encodeCurrencyName: Encoder[CurrencyName] = Encoder.encodeString.contramap(_.name.value)
-  implicit val decodeCurrencyName: Decoder[CurrencyName] = Decoder.decodeString.map(s => CurrencyName(CaseInsensitiveString(s)))
+  implicit val decodeCurrencyName: Decoder[CurrencyName] = Decoder.decodeString.map(s => CurrencyName(s.ci))
+
 }

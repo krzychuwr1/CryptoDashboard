@@ -68,7 +68,8 @@ object Launcher extends DBConfig[Task](
           high = high,
           low = low,
           open = open,
-          volume = 100000,
+          volumefrom = 100000,
+          volumeto = 100000,
           fromSymbol = currency,
           toSymbol = CurrencyName("USD".ci)
         )
