@@ -12,6 +12,7 @@ enablePlugins(DockerPlugin)
 
 resolvers += Resolver.sonatypeRepo("releases")
 
+addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
 addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.6")
 
 scalacOptions ++= Seq(
@@ -27,6 +28,7 @@ scalacOptions ++= Seq(
 
 libraryDependencies ++= Seq(
   "org.http4s" %% "rho-swagger" % "0.18.0",
+  "org.http4s" %% "http4s-dsl" % Http4sVersion,
   "org.http4s" %% "http4s-blaze-server" % Http4sVersion,
   "org.http4s" %% "http4s-blaze-client" % Http4sVersion,
   "org.http4s" %% "http4s-circe" % Http4sVersion,
@@ -34,6 +36,7 @@ libraryDependencies ++= Seq(
   "com.github.pureconfig" %% "pureconfig" % "0.8.0",
   "io.circe" %% "circe-generic" % CirceVersion,
   "io.circe" %% "circe-core" % CirceVersion,
+  "io.circe" %% "circe-generic-extras" % CirceVersion,
   "com.arangodb" % "arangodb-java-driver-async" % "4.3.0",
   "org.scalactic" %% "scalactic" % "3.0.5",
   "org.scalatest" %% "scalatest" % "3.0.5" % "test",
