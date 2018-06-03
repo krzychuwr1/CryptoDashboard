@@ -28,6 +28,7 @@ scalacOptions ++= Seq(
 
 libraryDependencies ++= Seq(
   "org.http4s" %% "rho-swagger" % "0.18.0",
+  "org.http4s" %% "http4s-dsl" % Http4sVersion,
   "org.http4s" %% "http4s-blaze-server" % Http4sVersion,
   "org.http4s" %% "http4s-blaze-client" % Http4sVersion,
   "org.http4s" %% "http4s-circe" % Http4sVersion,
