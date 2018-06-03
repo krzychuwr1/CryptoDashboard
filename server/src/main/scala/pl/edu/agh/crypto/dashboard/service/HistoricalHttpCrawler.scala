@@ -67,7 +67,7 @@ object HistoricalHttpCrawler {
     implicit def encoder[T: Encoder]: Encoder[HistoricalResponse[T]] = Encoder.forProduct1("Data")(_.data)
   }
 
-  def main(args: Array[String]): Unit = {
+  def run(args: Array[String]): Unit = {
     import monix.execution.Scheduler.Implicits.global
     import org.http4s.implicits._
     val log = org.log4s.getLogger

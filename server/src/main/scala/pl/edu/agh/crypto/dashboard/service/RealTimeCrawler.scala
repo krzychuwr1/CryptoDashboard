@@ -45,7 +45,7 @@ object RealTimeCrawler {
     implicit def decoder[T: Decoder]: Decoder[MultiplexData[T]] = Decoder.forProduct1("RAW")(MultiplexData.apply[T])
   }
 
-  def main(args: Array[String]): Unit = {
+  def run(args: Array[String]): Unit = {
     import monix.execution.Scheduler.Implicits.global
     import org.http4s.implicits._
     val log = org.log4s.getLogger
