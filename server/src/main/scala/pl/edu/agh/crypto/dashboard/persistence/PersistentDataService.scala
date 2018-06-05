@@ -51,13 +51,13 @@ class PersistentDataService[F[_]: Effect: ApplyFromJava, T: Encoder: Decoder: Co
     ): F[Map[CurrencyName, Seq[T]]] = {
 
       val firstOperator = from.fold("")(_ => "&&")
-      val secondOperator = from.fold("")(_ => "&&")
+      val secondOperator = to.fold("")(_ => "&&")
       implicit val fromKey: (String @@ Currency) = graph.fromKey(currency)
 
       dbAsync.executeQuery[(Edge, T)](
         aql"""
              |FOR v, e IN 1..1 OUTBOUND ${bindKey(graph.fromID)} GRAPH '${graph.name}'
-             | FILTER ${"e.to" in toSymbols} $firstOperator ${from.map("e._key" |>=| _)} $secondOperator ${to.map("e._key" |<=| _)}
+             | FILTER ${"e.to" in toSymbols} $firstOperator ${from.map("e.at" |>=| _)} $secondOperator ${to.map("e.at" |<=| _)}
              | RETURN [e, v]
       """.stripMargin,
         new AqlQueryOptions()

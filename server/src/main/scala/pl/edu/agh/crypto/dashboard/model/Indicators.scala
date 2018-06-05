@@ -4,7 +4,7 @@ import io.circe.generic.semiauto._
 import io.circe.{Decoder, Encoder}
 import org.joda.time.DateTime
 
-case class Indicators(sma: BigDecimal, date: DateTime)
+case class Indicators(sma: BigDecimal, ema: BigDecimal, date: DateTime)
 
 object Indicators {
   implicit val encoder: Encoder[Indicators] = deriveEncoder

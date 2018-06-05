@@ -5,7 +5,6 @@ import fs2.StreamApp
 import io.circe.{Decoder, Encoder}
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
-import monix.reactive.Observable
 import org.http4s.client.blaze.Http1Client
 import org.http4s.implicits._
 import org.http4s.rho.RhoService
@@ -15,7 +14,7 @@ import org.joda.time.DateTime
 import pl.edu.agh.crypto.dashboard.api.{CommonParsers, GenericBalanceAPI}
 import pl.edu.agh.crypto.dashboard.config.{ApplicationConfig, DBConfig, DataTypeEntry}
 import pl.edu.agh.crypto.dashboard.model.{Currency, CurrencyName, DailyTradingInfo, Indicators, PriceInfo, RawTradingInfo, TradingInfo}
-import pl.edu.agh.crypto.dashboard.persistence.{Connectable, GraphDefinition}
+import pl.edu.agh.crypto.dashboard.persistence.{Connectable, GraphDefinition, IndexDefinition}
 import pl.edu.agh.crypto.dashboard.service._
 
 import scala.reflect.ClassTag
@@ -27,7 +26,9 @@ object Launcher extends DBConfig[Task](
   Set(Currency(CurrencyName("BTC".ci)), Currency(CurrencyName("ETH".ci))),
   "dashboard"
 ) {
+
   import scala.concurrent.duration._
+
   private val logger = org.log4s.getLogger
 
   private val targetCurrencies = Set(CurrencyName("USD".ci), CurrencyName("EUR".ci))
@@ -177,50 +178,25 @@ object Launcher extends DBConfig[Task](
     }
   }
 
-  private def crawlerConnector[T] = new CrawlerUtils.MonixInstance[T](t => Task {
-    logger.error(t)("Task failed")
-  })
+  private def crawlerConnector[T: ClassTag](getCurrency: T => CurrencyName) = new CrawlerConnector.MonixInstance[T](
+    t => Task {
+      logger.error(t)("Task failed")
+    },
+    getCurrency
+  )
 
   def main(args: Array[String]): Unit = {
-
-    def runCrawler[T](
-      crawler: Crawler[Observable, T],
-      dataService: DataService[Task, T]
-    )(
-      byCurrency: T => CurrencyName
-    )(
-      implicit ct: ClassTag[T]
-    ): Task[Unit] = {
-
-      val grouped = crawler.stream.groupBy(byCurrency)
-
-      val running = grouped map { obs =>
-        logger.info(s"Running crawler for ${obs.key.name}, type: ${ct.runtimeClass.getSimpleName}")
-        val runObs = for {
-          sink <- Observable.fromTask(dataService.getDataSink(obs.key))
-          res <- obs.mapTask(sink.saveData)
-        } yield res
-        runObs.lastOptionL.runOnComplete({
-          case Success(_) =>
-          case Failure(err) =>
-            logger.error(err)(s"Crawler for currency: ${obs.key.name} failed")
-            sys.exit(1)
-        })
-      }
-
-      running.lastOptionL.map(_ => {})
-    }
 
     val dailyT: Task[Unit] = for {
       ds <- tradingInfoDs
       rc <- realTimeCrawler
-      _ <- runCrawler(rc, ds)(_.fromSymbol)
+      _ <- crawlerConnector[TradingInfo](_.fromSymbol).crawl(rc, ds)
     } yield ()
 
     val historicT: Task[Unit] = for {
       ds <- dailyService
       hc <- historicCrawler
-      _ <- runCrawler(hc, ds)(_.fromSymbol)
+      _ <- crawlerConnector[DailyTradingInfo](_.fromSymbol).crawl(hc, ds)
     } yield ()
 
     dailyT.runOnComplete({

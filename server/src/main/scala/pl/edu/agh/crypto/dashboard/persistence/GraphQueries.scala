@@ -22,6 +22,7 @@ abstract class GraphQueries[F[_], From: Encoder : Decoder, To: Encoder : Decoder
   import io.circe.syntax._
   import EdgeVertex._
 
+  private val logger = org.log4s.getLogger
   val keyValueQueries = new KeyValueQueries[F](dbAsync) {}
 
   private def edgeOf(from: From, to: To, edgeFields: Option[Edge])(implicit
@@ -42,13 +43,19 @@ abstract class GraphQueries[F[_], From: Encoder : Decoder, To: Encoder : Decoder
     toKey: String @@ To
   ): F[Unit] = {
     val edge = edgeOf(from, to, edgeFields)
-    val Right(key) = edge.hcursor.downField("_key").as[String]//should be here, if not just panic
-    dbAsync.executeModificationQuery(
+    val Right(_from) = edge.hcursor.downField("_from").as[String]//should be here, if not just panic
+    val Right(_to) = edge.hcursor.downField("_to").as[String]//the same
+    dbAsync.executeQuerySingle[Json](
       aql"""
-           |UPSERT { '_key': ${bindKey(key)}} INSERT ${bind(edge)} REPLACE ${bind(edge)} IN ${bindCollection(graph.edgeCollection)}
+           |UPSERT { '_from': ${bindKey(_from)}, '_to': ${bindKey(_to)} } INSERT ${bind(edge)} REPLACE ${bind(edge)} IN ${bindCollection(graph.edgeCollection)}
+           |RETURN NEW
            |""".stripMargin,
       new AqlQueryOptions()
-    )
+    ) map {
+      case Some(e) => logger.info(s"Upserted edge: ${e.noSpaces}")
+      case None =>
+        logger.warn("No edge upserted")
+    }
   }
 
   def putEdge(from: EdgeVertex[From], to: EdgeVertex[To], edgeFields: Option[Edge]): F[Unit] = {
