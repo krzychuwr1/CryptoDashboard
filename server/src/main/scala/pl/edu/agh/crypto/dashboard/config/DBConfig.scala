@@ -8,7 +8,7 @@ import cats.syntax.applicative._
 import com.arangodb.{ArangoDBAsync, ArangoDatabaseAsync}
 import io.circe.{Decoder, Encoder}
 import pl.edu.agh.crypto.dashboard.model.Currency
-import pl.edu.agh.crypto.dashboard.persistence.{Connectable, GraphDefinition, PersistentDataService}
+import pl.edu.agh.crypto.dashboard.persistence.{Connectable, GraphDefinition, IndexDefinition, PersistentDataService}
 import pl.edu.agh.crypto.dashboard.service.DataService
 
 import scala.collection.JavaConverters._
@@ -49,7 +49,8 @@ abstract class DBConfig[F[_]: Effect: ApplyFromJava](
   ): F[DataService[F, T]] =
     for {
       db <- dataBaseAsync
-      service <- PersistentDataService.create[F, T](db, graphDefinition, supportedCurrency)(memoize)
+      index = IndexDefinition("at", unique = false)
+      service <- PersistentDataService.create[F, T](db, graphDefinition, supportedCurrency, index)(memoize)
     } yield service
 
 }

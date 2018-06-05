@@ -5,7 +5,7 @@ import cats.effect.{Effect, Sync}
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import org.joda.time.DateTime
-import org.ta4j.core.indicators.SMAIndicator
+import org.ta4j.core.indicators.{EMAIndicator, SMAIndicator}
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator
 import org.ta4j.core.{BaseTimeSeries, Decimal, Indicator, TimeSeries}
 import pl.edu.agh.crypto.dashboard.model.{CurrencyName, DailyTradingInfo, Indicators}
@@ -23,7 +23,12 @@ class IndicatorService[F[_] : Effect : ApplyFromJava](
 
   private def smaOf(series: TimeSeries): Indicator[Decimal] = {
     val closePrice = new ClosePriceIndicator(series)
-    new SMAIndicator(closePrice, 5)
+    new SMAIndicator(closePrice, 12)
+  }
+
+  private def emaOf(series: TimeSeries): Indicator[Decimal] = {
+    val closePrice = new ClosePriceIndicator(series)
+    new EMAIndicator(closePrice, 12)
   }
 
   private def generateSeries(
@@ -39,7 +44,14 @@ class IndicatorService[F[_] : Effect : ApplyFromJava](
       case (cn, ti) =>
         val ts = timeSeriesOf(cn.name.value, ti)
         val shortSMA = smaOf(ts)
-        val data = ti.zipWithIndex map { case (dti, ind) => Indicators(shortSMA.getValue(ind).getDelegate, dti.time) }
+        val shortEMA = emaOf(ts)
+        val data = ti.zipWithIndex map {
+          case (dti, ind) => Indicators(
+            shortSMA.getValue(ind).getDelegate,
+            shortEMA.getValue(ind).getDelegate,
+            dti.time
+          )
+        }
         cn -> data
     }
   }

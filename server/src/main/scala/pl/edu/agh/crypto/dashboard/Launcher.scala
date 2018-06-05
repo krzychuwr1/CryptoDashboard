@@ -14,7 +14,7 @@ import org.joda.time.DateTime
 import pl.edu.agh.crypto.dashboard.api.{CommonParsers, GenericBalanceAPI}
 import pl.edu.agh.crypto.dashboard.config.{ApplicationConfig, DBConfig, DataTypeEntry}
 import pl.edu.agh.crypto.dashboard.model.{Currency, CurrencyName, DailyTradingInfo, Indicators, PriceInfo, RawTradingInfo, TradingInfo}
-import pl.edu.agh.crypto.dashboard.persistence.{Connectable, GraphDefinition}
+import pl.edu.agh.crypto.dashboard.persistence.{Connectable, GraphDefinition, IndexDefinition}
 import pl.edu.agh.crypto.dashboard.service._
 
 import scala.reflect.ClassTag

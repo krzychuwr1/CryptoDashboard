@@ -19,7 +19,7 @@ abstract class CommonParsers[F[+_]: Effect] {
       } catch {
         case NonFatal(_) =>
           FailureResponse.pure[F](
-            BadRequest.pure("Illegal argument, expected correct date-time string, format: yyyy-MM-dd'T'HHmmssZ")
+            BadRequest.pure("Illegal argument, expected correct date-time string, format: yyyy-MM-dd'T'HH:mm:ssZZ")
           )
       }
     }
