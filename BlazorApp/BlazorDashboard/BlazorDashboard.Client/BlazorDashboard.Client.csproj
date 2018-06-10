@@ -32,4 +32,8 @@
     <BlazorGenerate Remove="Pages\Prices.cshtml" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="wwwroot\scripts\BlazorRegisterFunctions.js" />
+  </ItemGroup>
+
 </Project>

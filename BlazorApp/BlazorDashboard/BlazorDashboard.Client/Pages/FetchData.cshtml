@@ -1,4 +1,5 @@
 ﻿@using BlazorDashboard.Shared
+@using Microsoft.AspNetCore.Blazor.Browser.Interop
 @page "/fetchdata"
 @inject HttpClient Http
 
@@ -32,7 +33,12 @@ else
                 </tr>
             }
         </tbody>
+
     </table>
+
+    <div class="ct-chart ct-perfect-fourth"></div>
+
+    <button onclick=@InitFlot>test</button>
 }
 
 @functions {
@@ -41,5 +47,10 @@ else
     protected override async Task OnInitAsync()
     {
         forecasts = await Http.GetJsonAsync<WeatherForecast[]>("/api/SampleData/WeatherForecasts");
+    }
+
+    void InitFlot()
+    {
+        RegisteredFunction.Invoke<bool>("blazor_chartistTest");
     }
 }
