@@ -1,0 +1,86 @@
+﻿@inject HttpClient Http
+@using BlazorDashboard.Shared
+@using BlazorDashboard.Client.ApiModel
+
+<div>
+    <div class="col-sm-4"><h1>Prices</h1></div>
+    <div class="col-sm-4">
+        <select class="form-control" style="margin-top:20px" bind="@ApiCryptocurrencyCode">
+            <option value="">-- Select Cryptocurrency --</option>
+            @foreach (var cryptoCurrency in CurrencyCodes.CryptocurrenciesList)
+            {
+                <option value="@cryptoCurrency">@cryptoCurrency</option>
+            }
+        </select>
+    </div>
+    <div class="col-sm-4">
+        <select class="form-control" style="margin-top:20px" bind="@FiatCurrencyCode">
+            <option value="">-- Select Currency --</option>
+            @foreach (var currency in CurrencyCodes.CurrenciesList)
+            {
+                <option value="@currency">@currency</option>
+            }
+        </select>
+    </div>
+
+    @if (DailyPrices == null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Low</th>
+                    <th>High</th>
+                    <th>Open</th>
+                    <th>Close</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var dailyPrice in DailyPrices)
+                {
+                    <tr>
+                        <td>@dailyPrice.Date.ToShortDateString()</td>
+                        <td>@dailyPrice.low</td>
+                        <td>@dailyPrice.high</td>
+                        <td>@dailyPrice.open</td>
+                        <td>@dailyPrice.close</td>
+                    </tr>
+                }
+            </tbody>
+
+        </table>
+    }
+    @functions {
+    [Parameter]
+    private string Name { get; set; }
+
+    private string _apiCryptocurrencyCode;
+
+    [Parameter]
+    private string ApiCryptocurrencyCode { get => _apiCryptocurrencyCode; set { _apiCryptocurrencyCode = value; Refresh(); } }
+
+    private string _fiatCurrencyCode;
+
+    [Parameter]
+    private string FiatCurrencyCode { get => _fiatCurrencyCode; set { _fiatCurrencyCode = value; Refresh(); } }
+
+    private List<SingleDailyInfo> DailyPrices { get; set; }
+
+    protected override async Task OnInitAsync()
+    {
+        await Refresh();
+    }
+
+    async Task Refresh()
+    {
+        var apiResponse = await Http.GetJsonAsync<Dictionary<string, List<SingleDailyInfo>>>($@"http://localhost/api/v1/daily-info/of/{ApiCryptocurrencyCode}/for/{FiatCurrencyCode}");
+        DailyPrices = apiResponse[FiatCurrencyCode].Skip(94).ToList();
+        this.StateHasChanged();
+    }
+
+    }
+</div>
