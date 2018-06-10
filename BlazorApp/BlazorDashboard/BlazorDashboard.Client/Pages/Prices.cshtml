@@ -33,11 +33,14 @@
         </form>
     }
     @functions {
-        public string Name { get; set; }
+        [Parameter]
+        private string Name { get; set; }
 
-        public string ApiCryptocurrencyCode { get; set; }
-
-        public int RefreshDelaySeconds { get; set; }
+        [Parameter]
+        private string ApiCryptocurrencyCode { get; set; }
+        
+        [Parameter]
+        private int RefreshDelaySeconds { get; set; }
 
         PricesModel prices;
 
