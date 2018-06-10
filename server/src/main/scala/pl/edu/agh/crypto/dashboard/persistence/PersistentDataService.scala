@@ -58,6 +58,7 @@ class PersistentDataService[F[_]: Effect: ApplyFromJava, T: Encoder: Decoder: Co
         aql"""
              |FOR v, e IN 1..1 OUTBOUND ${bindKey(graph.fromID)} GRAPH '${graph.name}'
              | FILTER ${"e.to" in toSymbols} $firstOperator ${from.map("e.at" |>=| _)} $secondOperator ${to.map("e.at" |<=| _)}
+             | SORT e.at
              | RETURN [e, v]
       """.stripMargin,
         new AqlQueryOptions()
