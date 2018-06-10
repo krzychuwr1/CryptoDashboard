@@ -14,7 +14,7 @@
     <Indicators ApiCryptocurrencyCode="ETH" FiatCurrencyCode="EUR" />
 </div>
 <div class="col-sm-6">
-    <HistoricalPricesGraph ApiCryptocurrencyCode="ETH" FiatCurrencyCode="EUR" />
+    <HistoricalPricesGraph ApiCryptocurrencyCode="ETH" FiatCurrencyCode="EUR" StartDate=DateTime.Today.AddDays(-7) EndDate=DateTime.Today />
 </div>
 <div class="col-sm-6">
     <Prices Name="Bitcoin" ApiCryptocurrencyCode="BTC" RefreshDelaySeconds="10" />

@@ -3,8 +3,8 @@
 @using BlazorDashboard.Client.ApiModel
 @using Microsoft.AspNetCore.Blazor.Browser.Interop
 <div>
-    <div class="col-sm-4"><h1>Prices</h1></div>
-    <div class="col-sm-4">
+    <div class="col-sm-12"><h1>Low/High Prices Graph</h1></div>
+    <div class="col-sm-3">
         <select class="form-control" style="margin-top:20px" bind="@ApiCryptocurrencyCode">
             <option value="">-- Select Cryptocurrency --</option>
             @foreach (var cryptoCurrency in CurrencyCodes.CryptocurrenciesList)
@@ -13,7 +13,7 @@
             }
         </select>
     </div>
-    <div class="col-sm-4">
+    <div class="col-sm-3">
         <select class="form-control" style="margin-top:20px" bind="@FiatCurrencyCode">
             <option value="">-- Select Currency --</option>
             @foreach (var currency in CurrencyCodes.CurrenciesList)
@@ -22,6 +22,26 @@
             }
         </select>
     </div>
+    <div class="col-sm-3">
+        <select class="form-control" style="margin-top:20px" bind="@StartDate">
+            <option value="">-- Select Start Date --</option>
+            @foreach (var date in Enumerable.Range(0, 100).Select(i => DateTime.Today.AddDays(-i)))
+            {
+                <option value="@date">@date.ToShortDateString()</option>
+            }
+        </select>
+    </div>
+    <div class="col-sm-3">
+        <select class="form-control" style="margin-top:20px" bind="@EndDate">
+            <option value="">-- Select End Date --</option>
+            @foreach (var date in Enumerable.Range(0, 100).Select(i => DateTime.Today.AddDays(-i)))
+            {
+                <option value="@date">@date.ToShortDateString()</option>
+            }
+        </select>
+    </div>
+
+
 
     @if (DailyPrices == null)
     {
@@ -31,36 +51,47 @@
     {
         <br />
         <br />
-        <div class="ct-chart ct-perfect-fourth" style="margin-top:40px"></div>
+        <div class="ct-chart ct-perfect-fourth" id="@gridIdentifier" style="margin-top:90px"></div>
     }
     @functions {
-    [Parameter]
-    private string Name { get; set; }
+        private Guid gridIdentifier = Guid.NewGuid();
 
-    private string _apiCryptocurrencyCode;
+        [Parameter]
+        private string Name { get; set; }
 
-    [Parameter]
-    private string ApiCryptocurrencyCode { get => _apiCryptocurrencyCode; set { _apiCryptocurrencyCode = value; Refresh(); } }
+        private string _apiCryptocurrencyCode;
 
-    private string _fiatCurrencyCode;
+        [Parameter]
+        private string ApiCryptocurrencyCode { get => _apiCryptocurrencyCode; set { _apiCryptocurrencyCode = value; Refresh(); } }
 
-    [Parameter]
-    private string FiatCurrencyCode { get => _fiatCurrencyCode; set { _fiatCurrencyCode = value; Refresh(); } }
+        private string _fiatCurrencyCode;
 
-    private List<SingleDailyInfo> DailyPrices { get; set; }
+        [Parameter]
+        private string FiatCurrencyCode { get => _fiatCurrencyCode; set { _fiatCurrencyCode = value; Refresh(); } }
 
-    protected override async Task OnInitAsync()
-    {
-        await Refresh();
-    }
+        private DateTime _startDate;
 
-    async Task Refresh()
-    {
-        var apiResponse = await Http.GetJsonAsync<Dictionary<string, List<SingleDailyInfo>>>($@"http://localhost/api/v1/daily-info/of/{ApiCryptocurrencyCode}/for/{FiatCurrencyCode}");
-        DailyPrices = apiResponse[FiatCurrencyCode].Skip(94).ToList();
-        RegisteredFunction.Invoke<bool>("blazor_chartistTest", DailyPrices.Select(d => d.low).ToList(), DailyPrices.Select(d => d.high).ToList());
-        this.StateHasChanged();
-    }
+        [Parameter]
+        private DateTime StartDate { get => _startDate; set { _startDate = value; Refresh(); } }
 
+        private DateTime _endDate;
+
+        [Parameter]
+        private DateTime EndDate { get => _endDate; set { _endDate = value; Refresh(); } }
+
+        private List<SingleDailyInfo> DailyPrices { get; set; }
+
+        protected override async Task OnInitAsync()
+        {
+            await Refresh();
+        }
+
+        async Task Refresh()
+        {
+            var apiResponse = await Http.GetJsonAsync<Dictionary<string, List<SingleDailyInfo>>>($@"http://localhost/api/v1/daily-info/of/{ApiCryptocurrencyCode}/for/{FiatCurrencyCode}");
+            DailyPrices = apiResponse[FiatCurrencyCode].Where(p => p.Date >= StartDate && p.Date <= EndDate).ToList();
+            RegisteredFunction.Invoke<bool>("blazor_chartist", gridIdentifier, DailyPrices.Select(d => d.Date.ToShortDateString()).ToList(), DailyPrices.Select(d => d.low).ToList(), DailyPrices.Select(d => d.high).ToList());
+            this.StateHasChanged();
+        }
     }
 </div>
