@@ -7,7 +7,8 @@ import cats.syntax.flatMap._
 import cats.syntax.functor._
 import com.arangodb.ArangoDBException
 import io.circe.Encoder
-import org.http4s.EntityEncoder
+import org.http4s.{EntityEncoder, Header, Headers}
+import org.http4s.headers._
 import org.http4s.circe.jsonEncoderOf
 import org.http4s.implicits._
 import org.http4s.rho.RhoService
@@ -28,6 +29,12 @@ abstract class GenericBalanceAPI[F[+_], Services <: HList](
 )(implicit
   ef: Effect[F]
 ) extends RhoService[F] with SwaggerSyntax[F] {
+
+  private def headers(method: String) = Headers(
+    Header(`Access-Control-Allow-Headers`.name.value, "Content-Type"),
+    Header(`Access-Control-Allow-Methods`.name.value, method),
+    Header(`Access-Control-Allow-Origin`.name.value, "*")
+  )
 
   import commonParsers._
 
@@ -89,7 +96,7 @@ abstract class GenericBalanceAPI[F[+_], Services <: HList](
 
             for {
               result <- resF.attempt
-              resp <- result.fold(handleError, Ok(_))
+              resp <- result.fold(handleError, Ok(_, headers("GET")))
             } yield resp
           }
       }
