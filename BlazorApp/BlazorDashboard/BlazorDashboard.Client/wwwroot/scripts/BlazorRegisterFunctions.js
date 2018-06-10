@@ -1,26 +1,25 @@
-﻿Blazor.registerFunction('blazor_chartistTest', () => {
+﻿Blazor.registerFunction('blazor_chartistTest', (low, high) => {
     // Our labels and three data series
     var data = {
-        labels: ['Week1', 'Week2', 'Week3', 'Week4', 'Week5', 'Week6'],
+        labels: ['Week1', 'Week2', 'Week3', 'Week4', 'Week5', 'Week6', 'Week7'],
         series: [
-            [5, 4, 3, 7, 5, 10],
-            [3, 2, 9, 5, 4, 6],
-            [2, 1, -3, -4, -2, 0]
+            low,
+            high
         ]
     };
 
     // We are setting a few options for our chart and override the defaults
     var options = {
         // Don't draw the line chart points
-        showPoint: false,
+        showPoint: true,
         // Disable line smoothing
         lineSmooth: false,
         // X-Axis specific configuration
         axisX: {
             // We can disable the grid for this axis
-            showGrid: false,
+            showGrid: true,
             // and also don't show the label
-            showLabel: false
+            showLabel: true
         },
         // Y-Axis specific configuration
         axisY: {
@@ -30,7 +29,7 @@
             // used for the labels on each axis. Here we are converting the
             // values into million pound.
             labelInterpolationFnc: function (value) {
-                return '$' + value + 'm';
+                return '$' + value;
             }
         }
     };

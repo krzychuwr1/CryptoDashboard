@@ -1,9 +1,9 @@
 ﻿@inject HttpClient Http
 @using BlazorDashboard.Shared
 @using BlazorDashboard.Client.ApiModel
-
+@using Microsoft.AspNetCore.Blazor.Browser.Interop
 <div>
-    <div class="col-sm-4"><h1>Indicators</h1></div>
+    <div class="col-sm-4"><h1>Prices</h1></div>
     <div class="col-sm-4">
         <select class="form-control" style="margin-top:20px" bind="@ApiCryptocurrencyCode">
             <option value="">-- Select Cryptocurrency --</option>
@@ -23,34 +23,20 @@
         </select>
     </div>
 
-    @if (DailyIndicators == null)
+    @if (DailyPrices == null)
     {
         <p><em>Loading...</em></p>
     }
     else
     {
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>EMA</th>
-                    <th>SMA</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var dailyIndicator in DailyIndicators)
-                {
-                    <tr>
-                        <td>@dailyIndicator.DateDateTime.ToShortDateString()</td>
-                        <td>@dailyIndicator.EMA</td>
-                        <td>@dailyIndicator.SMA</td>
-                    </tr>
-                }
-            </tbody>
-
-        </table>
+        <br />
+        <br />
+        <div class="ct-chart ct-perfect-fourth" style="margin-top:40px"></div>
     }
     @functions {
+    [Parameter]
+    private string Name { get; set; }
+
     private string _apiCryptocurrencyCode;
 
     [Parameter]
@@ -61,7 +47,7 @@
     [Parameter]
     private string FiatCurrencyCode { get => _fiatCurrencyCode; set { _fiatCurrencyCode = value; Refresh(); } }
 
-    private List<IndicatorsModel> DailyIndicators { get; set; }
+    private List<SingleDailyInfo> DailyPrices { get; set; }
 
     protected override async Task OnInitAsync()
     {
@@ -70,8 +56,9 @@
 
     async Task Refresh()
     {
-        var apiResponse = await Http.GetJsonAsync<Dictionary<string, List<IndicatorsModel>>>($@"http://localhost/api/v1/indicators/of/{ApiCryptocurrencyCode}/for/{FiatCurrencyCode}");
-        DailyIndicators = apiResponse[FiatCurrencyCode].Skip(94).ToList();
+        var apiResponse = await Http.GetJsonAsync<Dictionary<string, List<SingleDailyInfo>>>($@"http://localhost/api/v1/daily-info/of/{ApiCryptocurrencyCode}/for/{FiatCurrencyCode}");
+        DailyPrices = apiResponse[FiatCurrencyCode].Skip(94).ToList();
+        RegisteredFunction.Invoke<bool>("blazor_chartistTest", DailyPrices.Select(d => d.low).ToList(), DailyPrices.Select(d => d.high).ToList());
         this.StateHasChanged();
     }
 

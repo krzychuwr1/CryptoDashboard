@@ -23,7 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Update="Pages\FetchData - Copy.cshtml">
+    <Content Update="Pages\HistoricalPricesGraph.cshtml">
       <Pack>$(IncludeRazorContentInPack)</Pack>
     </Content>
     <Content Update="Pages\Indicators.cshtml">
