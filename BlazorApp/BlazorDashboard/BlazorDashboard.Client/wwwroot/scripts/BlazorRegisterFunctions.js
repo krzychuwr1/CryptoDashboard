@@ -23,7 +23,7 @@
         }
     };
 
-    new Chartist.Line('.ct-chart', data, options);
+    new Chartist.Line('#'+id, data, options);
     return true;
 });
 

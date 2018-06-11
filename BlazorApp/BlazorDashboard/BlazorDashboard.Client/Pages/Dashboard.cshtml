@@ -4,24 +4,24 @@
 
 <h1>Dashboard</h1>
 
-<p>Here you can see some stats for various cryptocurrencies.</p>
-<p>All data is downloaded using <a href="https://www.cryptocompare.com/api/">cryptocomppare api</a> under <a href="https://creativecommons.org/licenses/by-nc/3.0/">creative commons license</a> </p>
-
-<div class="col-sm-6">
-    <HistoricalPrices ApiCryptocurrencyCode="ETH" FiatCurrencyCode="EUR" />
+<div class="col-sm-4">
+    <Prices Name="Bitcoin" ApiCryptocurrencyCode="BTC" RefreshDelaySeconds="10" />
 </div>
-<div class="col-sm-6">
-    <Indicators ApiCryptocurrencyCode="ETH" FiatCurrencyCode="EUR" />
+<div class="col-sm-4">
+    <Prices Name="Ether" ApiCryptocurrencyCode="ETH" RefreshDelaySeconds="20" />
+</div>
+<div class="col-sm-4">
+    <Prices Name="Stratis" ApiCryptocurrencyCode="STRAT" RefreshDelaySeconds="30" />
 </div>
 <div class="col-sm-6">
     <HistoricalPricesGraph ApiCryptocurrencyCode="ETH" FiatCurrencyCode="EUR" StartDate=DateTime.Today.AddDays(-7) EndDate=DateTime.Today />
 </div>
 <div class="col-sm-6">
-    <Prices Name="Bitcoin" ApiCryptocurrencyCode="BTC" RefreshDelaySeconds="10" />
+    <IndicatorsGraph ApiCryptocurrencyCode="ETH" FiatCurrencyCode="EUR" StartDate=DateTime.Today.AddDays(-7) EndDate=DateTime.Today />
 </div>
 <div class="col-sm-6">
-    <Prices Name="Ether" ApiCryptocurrencyCode="ETH" RefreshDelaySeconds="20" />
+    <HistoricalPrices ApiCryptocurrencyCode="ETH" FiatCurrencyCode="EUR" StartDate=DateTime.Today.AddDays(-7) EndDate=DateTime.Today />
 </div>
 <div class="col-sm-6">
-    <Prices Name="Stratis" ApiCryptocurrencyCode="STRAT" RefreshDelaySeconds="30" />
+    <Indicators ApiCryptocurrencyCode="ETH" FiatCurrencyCode="EUR" StartDate=DateTime.Today.AddDays(-7) EndDate=DateTime.Today />
 </div>

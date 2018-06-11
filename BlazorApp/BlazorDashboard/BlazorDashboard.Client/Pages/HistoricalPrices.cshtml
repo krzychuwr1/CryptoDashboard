@@ -3,8 +3,8 @@
 @using BlazorDashboard.Client.ApiModel
 
 <div>
-    <div class="col-sm-4"><h1>Prices</h1></div>
-    <div class="col-sm-4">
+    <div class="col-sm-12"><h1>Prices</h1></div>
+    <div class="col-sm-3">
         <select class="form-control" style="margin-top:20px" bind="@ApiCryptocurrencyCode">
             <option value="">-- Select Cryptocurrency --</option>
             @foreach (var cryptoCurrency in CurrencyCodes.CryptocurrenciesList)
@@ -13,12 +13,30 @@
             }
         </select>
     </div>
-    <div class="col-sm-4">
+    <div class="col-sm-3">
         <select class="form-control" style="margin-top:20px" bind="@FiatCurrencyCode">
             <option value="">-- Select Currency --</option>
             @foreach (var currency in CurrencyCodes.CurrenciesList)
             {
                 <option value="@currency">@currency</option>
+            }
+        </select>
+    </div>
+    <div class="col-sm-3">
+        <select class="form-control" style="margin-top:20px" bind="@StartDate">
+            <option value="">-- Select Start Date --</option>
+            @foreach (var date in Enumerable.Range(0, 100).Select(i => DateTime.Today.AddDays(-i)))
+            {
+                <option value="@date">@date.ToShortDateString()</option>
+            }
+        </select>
+    </div>
+    <div class="col-sm-3">
+        <select class="form-control" style="margin-top:20px" bind="@EndDate">
+            <option value="">-- Select End Date --</option>
+            @foreach (var date in Enumerable.Range(0, 100).Select(i => DateTime.Today.AddDays(-i)))
+            {
+                <option value="@date">@date.ToShortDateString()</option>
             }
         </select>
     </div>
@@ -56,29 +74,39 @@
     }
     @functions {
 
-    private string _apiCryptocurrencyCode;
+        private string _apiCryptocurrencyCode;
 
-    [Parameter]
-    private string ApiCryptocurrencyCode { get => _apiCryptocurrencyCode; set { _apiCryptocurrencyCode = value; Refresh(); } }
+        [Parameter]
+        private string ApiCryptocurrencyCode { get => _apiCryptocurrencyCode; set { _apiCryptocurrencyCode = value; Refresh(); } }
 
-    private string _fiatCurrencyCode;
+        private string _fiatCurrencyCode;
 
-    [Parameter]
-    private string FiatCurrencyCode { get => _fiatCurrencyCode; set { _fiatCurrencyCode = value; Refresh(); } }
+        [Parameter]
+        private string FiatCurrencyCode { get => _fiatCurrencyCode; set { _fiatCurrencyCode = value; Refresh(); } }
 
-    private List<SingleDailyInfo> DailyPrices { get; set; }
+        private DateTime _startDate;
 
-    protected override async Task OnInitAsync()
-    {
-        await Refresh();
-    }
+        [Parameter]
+        private DateTime StartDate { get => _startDate; set { _startDate = value; Refresh(); } }
 
-    async Task Refresh()
-    {
-        var apiResponse = await Http.GetJsonAsync<Dictionary<string, List<SingleDailyInfo>>>($@"http://localhost/api/v1/daily-info/of/{ApiCryptocurrencyCode}/for/{FiatCurrencyCode}");
-        DailyPrices = apiResponse[FiatCurrencyCode].Skip(94).ToList();
-        this.StateHasChanged();
-    }
+        private DateTime _endDate;
+
+        [Parameter]
+        private DateTime EndDate { get => _endDate; set { _endDate = value; Refresh(); } }
+
+        private List<SingleDailyInfo> DailyPrices { get; set; }
+
+        protected override async Task OnInitAsync()
+        {
+            await Refresh();
+        }
+
+        async Task Refresh()
+        {
+            var apiResponse = await Http.GetJsonAsync<Dictionary<string, List<SingleDailyInfo>>>($@"http://localhost/api/v1/daily-info/of/{ApiCryptocurrencyCode}/for/{FiatCurrencyCode}");
+            DailyPrices = apiResponse[FiatCurrencyCode].Where(p => p.Date >= StartDate && p.Date <= EndDate).ToList();
+            this.StateHasChanged();
+        }
 
     }
 </div>
